@@ -1,0 +1,137 @@
+hunav_loader:
+  ros__parameters:
+    map: sample_scenario_2
+    publish_people: true
+    agents:
+      - agent1
+      - agent2
+      - agent3
+    agent1:
+      id: 1
+      skin: 2
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      behavior: 
+        type: 1 # REGULAR=1, IMPASSIVE=2, SURPRISED=3, SCARED=4, CURIOUS=5, THREATENING=6
+        configuration: 0 # def: 0, custom:1, random_normal:2, random_uniform:3
+        duration: 40.0  # seg
+        once: true
+        vel: 0.6
+        dist: 0.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 150.0
+        social_force_factor: 10.0
+        other_force_factor: 20.0
+      init_pose:
+        x: -3.973340
+        y: -8.576801
+        z: 0.0
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+      g0:
+        x: -3.973340
+        y: -3.973340
+        h: 0.0
+      g1:
+        x: 0.997901
+        y: -4.131655
+        h: 0.0
+      g2:
+        x: -10.227549
+        y: -10.187146
+        h: 0.0
+    agent2:
+      id: 2
+      skin: 3
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      behavior: 
+        type: 5 
+        configuration: 2  
+        duration: 40.0  # seg
+        once: true
+        vel: 0.6
+        dist: 0.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 150.0
+        social_force_factor: 10.0
+        other_force_factor: 20.0
+      init_pose:
+        x: 2.924233
+        y: 5.007970
+        z: 0.0
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+        - g3
+      g0:
+        x: -11.924233
+        y: 5.007970
+        h: 0.0
+      g1:
+        x: -1.663169
+        y: -11.291318
+        h: 0.0
+      g2:
+        x: 6.0
+        y: -10.0
+        h: 0.0
+      g3:
+        x: 2.924233
+        y: 5.007970
+        h: 0.0
+    agent3:
+      id: 3
+      skin: 3
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      behavior: 
+        type: 1 
+        configuration: 2  
+        duration: 40.0  # seg
+        once: true
+        vel: 0.6
+        dist: 0.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 150.0
+        social_force_factor: 10.0
+        other_force_factor: 20.0
+      init_pose:
+        x: 1.0
+        y: 4.0
+        z: 0.0
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+      g0:
+        x: -10.924233
+        y: 5.007970
+        h: 0.0
+      g1:
+        x: -4.663169
+        y: -10.291318
+        h: 0.0
+      g2:
+        x: -8.663169
+        y: -10.291318
+        h: 0.0
+      g3:
+        x: 8.663169
+        y: -4.291318
+        h: 0.0
