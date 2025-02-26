@@ -1,64 +1,60 @@
-# **HuNav Isaac Wrapper**
+# **HuNav Isaac Wrapper**  
 
-A standalone simulation wrapper built on **NVIDIA Isaac Sim** that manages [HuNavSim](https://github.com/robotics-upo/hunav_sim) agents. It enables seamless integration of HuNavSim into Isaac Sim environments, supporting physics-based animations and ROS 2 teleoperation.
-
----
-
-### 🚧 **Work in Progress**
-This repository is under active development and subject to improvements.
-
-### ✅ **Tested Configurations**
-- **ROS 2 Humble**
-- **Isaac Sim 4.2**
-- **Ubuntu 22.04 LTS**
+A standalone simulation wrapper for **NVIDIA Isaac Sim**, integrating the **Human Navigation Simulator ([HuNavSim](https://github.com/robotics-upo/hunav_sim))** with **physics-based animations** and **ROS 2 teleoperation**.
 
 ---
 
-## 🔹 **Overview**
-**HuNav Isaac Wrapper** provides a **modular** architecture for simulating **human navigation** in **NVIDIA Isaac Sim**, integrating **ROS 2** for teleoperation and **HuNavSim** for agent behavior simulation. Key components include:
+### 🚧 **Work in Progress**  
+This repository is actively developed and subject to improvements.
 
-- **ROS 2 Integration:**  
-  `teleop_hunav_sim.py` implements the `TeleopHuNavSim` class, which subscribes to `/cmd_vel` for robot teleoperation and integrates **HuNavSim** within **Isaac Sim**.
-
-- **Agent Management:**  
-`hunav_manager.py` manages agent **spawning/management**, **physics**, and **obstacle detection** based on YAML configurations (`config/` folder).
-  
-- **Animation Retargeting:**  
-  Supports **animation retargeting**, using **USD SkelAnimation** and the **Omni Anim Retargeting extension** (`CreateRetargetAnimationsCommand`) to apply a single set of animation clips (e.g., walking, idle) originally designed for a **default NVIDIA biped skeleton** to multiple character models.
-
-- **World Loading:**  
-  `world_builder.py` loads USD scenarios from the `scenarios/` folder into Isaac Sim.
+### ✅ **Tested Configurations**  
+- **ROS 2 Humble**  
+- **Isaac Sim 4.2**  
+- **Ubuntu 22.04 LTS**  
 
 ---
 
-## 🔹 **Features**
+## 🔹 **Overview**  
+**HuNav Isaac Wrapper** provides a **modular** framework for **human navigation simulation** (via the [HuNavSim](https://github.com/robotics-upo/hunav_sim)) in **Isaac Sim**, integrating **ROS 2** for teleoperation and **HuNavSim** for agent behavior. Key components include:
 
-- **Modular and Extensible Architecture:**  
-  Organized into independent modules for easy maintenance and expansion:
-    - `world_builder.py` — Loads USD scenarios.
-    - `hunav_manager.py` — Manages agent spawning and management, physics, and animation retargeting.
-    - `teleop_hunav_sim.py` — Integrates ROS 2 teleoperation and initializes HuNavSim's workflow.
-    - `main.py` — Entry point for the simulation.
+- **ROS 2 Integration** (`teleop_hunav_sim.py`) – Handles `/cmd_vel` for robot teleoperation and synchronizes HuNavSim agents.  
+- **Agent Management** (`hunav_manager.py`) – Manages agent spawning, animations, physics, and obstacle detection via YAML configurations (`config/` folder).  
+- **Animation System** – Uses **AnimationGraph** for **walk/idle animations blending** and supports animation **retargeting**.
+- **Scenario Loading** (`world_builder.py`) – Loads USD scenarios from the `scenarios/` folder into the simulator stage.
 
-- **Unified Animation Workflow:**  
-  Retargets animations from a **default biped skeleton** to various character models using skeletal binding.
+---
+
+## 🔹 **Features**  
+
+- **Modular Architecture:**  
+  - `world_builder.py` – Loads USD scenarios.  
+  - `hunav_manager.py` – Manages agents, physics, and animations.  
+  - `teleop_hunav_sim.py` – Integrates ROS 2 teleoperation and initializes HuNavSim's workflow.
+  - `animation_utils.py` – Contains all animation-related utils.
+  - `main.py` – Entry point for the simulation.  
+
+- **Animation System:**  
+  - **AnimationGraph-based** animation blending for smooth walk/idle transitions:  
+    - Uses an **AnimationGraph blend node**, driven by agent velocity, to dynamically transition between walk and idle animations.  
+    - Ensures **fluid motion** by eliminating abrupt animation changes and maintaining consistency across loop boundaries.  
+  - Supports **animation retargeting**, using **USD SkelAnimation** and the **Omni Anim Retargeting extension** to apply a single set of animation clips (e.g., walking, idle) originally designed for a **default NVIDIA biped skeleton** to multiple character models.  
 
 - **Configurable Agent Spawning:**  
-  YAML configuration files (`config/`) define **initial positions, waypoints, social force model (SFM) parameters, and behaviors**.
+  - YAML files (inside `config/`) define **initial positions, goals, social force model (SFM) parameters and behaviors**.  
 
-- **Social simulation and Teleoperation:**  
-  - **ROS 2 teleoperation** via `/cmd_vel` for real-time robot control.
-  - **HuNavSim agent management** for social-aware human navigation.
+- **Social Simulation & Teleoperation:**  
+  - **ROS 2 teleoperation** via `/cmd_vel` for real-time robot control.  
+  - **HuNavSim agent management** for social-aware navigation.  
 
 - **Obstacle Detection:**  
-  **PhysX raycasts** (implemented in `hunav_manager.py`) detect nearby obstacles for **HuNavSim’s** navigation logic.
+  - **PhysX raycasts** (implemented in `hunav_manager.py`) detect obstacles for **HuNavSim’s** navigation logic.
 
 ---
 
 ## 🔹 **Requirements**
 - **Ubuntu 22.04 LTS**
 - [**HuNavSim**](https://github.com/robotics-upo/hunav_sim)
-- [**NVIDIA Isaac Sim**](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html#): (Tested on version 4.2.0).  
+- [**NVIDIA Isaac Sim**](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html#) (Tested on version 4.2.0) 
 
   
 - **Python 3.8+**  
@@ -100,6 +96,7 @@ The map name and agent configuration file are set in `main.py`.
 
 #### Scene Setup
 - Place your USD scenario file (e.g., `empty_world.usd`) in the `scenarios/` folder.
+- A **sample scenario** (`sample_scenario.usd`) has been added with obstacles to better illustrate agent dynamics. **Ensure to decompress the file before usage**.
 
 ### 5. Launch the Simulation
 
@@ -113,7 +110,7 @@ This script will:
 - Launch Isaac Sim (with a GUI unless headless mode is specified).
 - Load the specified scenario.
 - Spawn agents based on the YAML configuration.
-- Apply physics, animations (including retargeting), and initialize ROS 2 communication for enabling HuNavSim and robot teleoperation.
+- Apply physics, animations, and initialize ROS 2 communication for enabling HuNavSim and robot teleoperation.
 
 ### 6. Teleoperation and Simulation
 
@@ -121,7 +118,7 @@ This script will:
 - Publish ROS 2 Twist messages to `/cmd_vel` to control the robot (e.g., a Jetbot).
 
 #### Simulation
-- The simulation continuously updates agent positions and behaviors at every physics step.
+- The simulation continuously updates agent positions, behaviors and animations on every physics step.
 
 
 ---
@@ -134,8 +131,11 @@ This script will:
 
 ### Retargeting Errors (*)
 - Verify that the default source biped prim is correctly loaded at `/World/biped_demo`.
-- Ensure that the target agents have a valid skeleton (use the `findSkeletonPath` method for debugging).
+- Ensure that the target agents have a valid **skeleton** (use the `findSkeletonPath` method for debugging).
 - Confirm that the extension `omni.anim.retarget.core` is enabled.
+
+### AnimationGraph Issues
+- If AnimationGraph is not applying correctly, verify that it is correctly assigned to the agent's **SkelRoot** and that transformations are applied properly.
 
 ### ROS 2 Connectivity
 - Make sure ROS 2 is running and that the `/compute_agents` service is active.
