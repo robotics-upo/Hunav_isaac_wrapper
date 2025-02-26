@@ -13,10 +13,10 @@ import os
 def main():
     rclpy.init()
     
-    # Adjust the configuration path and scenario as needed.
+    # Adjust the agents configuration path and scenario as needed
     hunav_config_path = os.path.join(os.path.dirname(__file__), "config/agents_2.yaml")
     
-    map_name = "empty_world"
+    map_name = "empty_world" # or "sample_scenario" (unzip sample_scenario.zip first)
     
     node = TeleopHuNavSim(map_name=map_name, hunav_config=hunav_config_path)
     try:

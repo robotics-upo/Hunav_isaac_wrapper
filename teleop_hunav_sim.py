@@ -10,12 +10,16 @@ Contains the TeleopHuNavSim class which combines:
 from isaacsim import SimulationApp
 
 # Start Isaac Sim
-simulation_app = SimulationApp({"headless": False})
+config = {
+    "width": "1280",
+    "height": "720",
+    "headless": False,
+}
+simulation_app = SimulationApp(config)
 
 import sys
 import os
 import signal
-import time
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from omni.isaac.core import World
@@ -24,6 +28,7 @@ from omni.isaac.wheeled_robots.robots import WheeledRobot
 from omni.isaac.wheeled_robots.controllers.differential_controller import (
     DifferentialController,
 )
+
 # Import the WorldBuilder and HuNavManager modules.
 from world_builder import WorldBuilder
 from hunav_manager import HuNavManager

@@ -12,9 +12,6 @@ class WorldBuilder:
     """
     Loads an entire USD stage from disk.
     
-    Example:
-        wb = WorldBuilder(base_path="/path/to/project")
-        wb.load_map("airport_scenario")
     """
     def __init__(self, base_path):
         self.base_path = base_path

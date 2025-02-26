@@ -8,16 +8,15 @@ setting up animations (including retargeting), and handling physics.
 
 import os
 import math
+import random
 import yaml
 import numpy as np
 import subprocess, signal
 from typing import Tuple, List, Optional
-from random import choice
-import time
 
 # ROS messages
 import rclpy
-from geometry_msgs.msg import Twist, Quaternion, Pose, Point
+from geometry_msgs.msg import Quaternion, Pose, Point
 from hunav_msgs.srv import ComputeAgents
 from hunav_msgs.msg import Agent, Agents, AgentBehavior
 from std_msgs.msg import Header
@@ -31,11 +30,16 @@ import omni.isaac.dynamic_control
 from omni.isaac.nucleus import get_assets_root_path
 from omni.isaac.core.utils.extensions import disable_extension, enable_extension
 
-from pxr import Sdf, Gf, UsdGeom, UsdPhysics, PhysxSchema, UsdSkel, Vt
+from pxr import Sdf, Gf, UsdGeom, UsdPhysics, PhysxSchema
+import carb
+
+# Import auxiliary animation functions
+from animation_utils import *
 
 enable_extension("omni.anim.retarget.core")
-disable_extension("omni.anim.graph.core")
 disable_extension("omni.anim.skelJoint")
+
+import omni.anim.graph.core as ag
 
 
 class HuNavManager:
@@ -52,6 +56,7 @@ class HuNavManager:
         self.stage = world.stage
         self.robot_prim_path = robot_prim_path
         self.robot_obj = robot
+        self.world = world
 
         self.assets_root = get_assets_root_path()
         self._usd_context = omni.usd.get_context()
@@ -66,19 +71,29 @@ class HuNavManager:
         )
 
         # List of target model assets
-        self.target_model_paths = [
-            "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/F_Business_02/F_Business_02.usd",
-            "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/F_Medical_01/F_Medical_01.usd",
-            "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/M_Medical_01/M_Medical_01.usd",
-            "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/male_adult_construction_01_new/male_adult_construction_01_new.usd",
-            "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/male_adult_construction_05_new/male_adult_construction_05_new.usd",
-            "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/female_adult_police_01_new/female_adult_police_01_new.usd",
+        character_root_path = "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/"
+
+        character_models = [
+            "F_Business_02/F_Business_02.usd",
+            "F_Medical_01/F_Medical_01.usd",
+            "M_Medical_01/M_Medical_01.usd",
+            "male_adult_construction_01_new/male_adult_construction_01_new.usd",
+            "male_adult_construction_05_new/male_adult_construction_05_new.usd",
+            "female_adult_police_01_new/female_adult_police_01_new.usd",
         ]
+
+        self.target_model_paths = [
+            f"{character_root_path}{model}" for model in character_models
+        ]
+
         # Data holders
         self.agents = []
         self.agent_initial_states = []
         self.animationDict = {}
         self._hunav_processes = []
+        self.retarget_flag = False
+        self.bound_animations = {}
+        self.flag_anim = {}
 
         self.robot_prim = None
 
@@ -90,7 +105,7 @@ class HuNavManager:
         else:
             self.config = None
 
-        # Define the default source (binding) asset.
+        # Define the default character source asset (for animation retargeting)
         self.default_biped_usd = "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/Biped_Setup.usd"
 
     def _load_yaml(self, relative_path):
@@ -115,87 +130,12 @@ class HuNavManager:
             os.killpg(os.getpgid(process.pid), signal.SIGTERM)
         self._hunav_processes = []
 
-    def findSkeletonPath(self, agentPrim):
-        """
-        Recursively searches for a prim of type "Skeleton" within agentPrim.
-        Skips prims with "Looks" or "CharacterAnimation" in their path.
-        Returns agentPrim.GetPath() + "/Root" if no Skeleton is found.
-        """
-        if agentPrim.GetTypeName() == "Skeleton":
-            return agentPrim.GetPath()
-        for child in agentPrim.GetChildren():
-            if not child.IsValid():
-                continue
-            child_path_str = child.GetPath().pathString
-            if ("Looks" in child_path_str) or ("CharacterAnimation" in child_path_str):
-                continue
-            if child.GetTypeName() == "Skeleton":
-                return child.GetPath()
-            result = self.findSkeletonPath(child)
-            if result:
-                return result
-        print(
-            f"Warning: No Skeleton found for {agentPrim.GetPath()}, using /Root by default."
-        )
-        return Sdf.Path(f"{agentPrim.GetPath()}/Root")
-
-    def create_animation(self, animation_path, source_path):
-        animation = self.stage.DefinePrim(animation_path, "SkelAnimation")
-        animation.GetReferences().AddReference(source_path)
-        return animation
-
-    def set_animation(self, agent_prim, anim_list):
-        skel_path = self.findSkeletonPath(agent_prim)
-        skeleton_prim = self.stage.GetPrimAtPath(skel_path)
-        binding_api = UsdSkel.BindingAPI.Apply(skeleton_prim)
-        binding_api.GetAnimationSourceRel().SetTargets(anim_list)
-
-    def setup_anim_retargeting(self, agent_prim):
-        """
-        Uses the CreateRetargetAnimationsCommand to set up retargeting.
-        The command uses the default source skeleton (from /World/biped_demo) and
-        the target agent's skeleton to create new retargeted animation clips.
-        """
-        source_agent_prim = self.stage.GetPrimAtPath("/World/biped_demo")
-        if not source_agent_prim or not source_agent_prim.IsValid():
-            print("Default biped prim not found.")
-            return None
-
-        source_skel_path = self.findSkeletonPath(source_agent_prim)
-        if not source_skel_path:
-            print("Default biped skeleton not found.")
-            return None
-        source_skel_str = str(source_skel_path)
-
-        target_skel_path = self.findSkeletonPath(agent_prim)
-        if not target_skel_path:
-            print("Target skeleton not found.")
-            return None
-        target_skel_str = str(target_skel_path)
-
-        source_anim_path = str(self.source_animation_dict[1])
-
-        omni.kit.commands.execute(
-            "CreateRetargetAnimationsCommand",
-            source_skeleton_path=source_skel_str,
-            target_skeleton_path=target_skel_str,
-            source_animation_paths=[source_anim_path],
-            target_animation_parent_path=self.target_animation_parent_path,
-            set_root_identity=False,
-        )
-        omni.kit.commands.execute(
-            "CreateRetargetAnimationsCommand",
-            source_skeleton_path=source_skel_str,
-            target_skeleton_path=target_skel_str,
-            source_animation_paths=[str(self.source_animation_dict[0])],
-            target_animation_parent_path=self.target_animation_parent_path,
-            set_root_identity=False,
-        )
-
     def initialize_agents(self):
         """
-        Reads the YAML configuration for agents, spawns them, sets up animations,
-        and applies retargeting for target models.
+        Reads the YAML configuration for agents, spawns them, and sets up their animations
+        using a two-level hierarchy. For each agent, the outer container prim (type "Xform") is updated by
+        compute_agents (global transform), while the inner child prim (type "SkelRoot") is
+        animated via an AnimationGraph created beforehand.
         """
         if self.config is None:
             print("[HuNavManager] No config loaded, skipping agent creation.")
@@ -203,34 +143,39 @@ class HuNavManager:
 
         agent_configs = self.config["hunav_loader"]["ros__parameters"]["agents"]
 
-        # Create animations (source clips).
+        # Create animations using the auxiliary module functions
         animations_path = os.path.join(
             self.assets_root, "Isaac", "People", "Animations"
         )
-        self.target_animation_parent_path = "/World"
-        walk_anim = self.create_animation(
+        walk_anim = create_animation(
+            self.stage,
             "/World/Animations/WalkLoop",
             os.path.join(animations_path, "stand_walk_loop_in_place.skelanim.usd"),
         )
-        idle_anim = self.create_animation(
+        idle_anim = create_animation(
+            self.stage,
             "/World/Animations/IdleLoop",
             os.path.join(animations_path, "stand_idle_loop.skelanim.usd"),
         )
         self.source_animation_dict = {0: idle_anim.GetPath(), 1: walk_anim.GetPath()}
-        retarget_anims_path = [
+        self.target_animation_parent_path = "/World/Characters"
+        self.retarget_anims_path = [
             os.path.join(self.target_animation_parent_path, "IdleLoop"),
             os.path.join(self.target_animation_parent_path, "WalkLoop"),
         ]
-        self.animationDict = {0: retarget_anims_path[0], 1: retarget_anims_path[1]}
+        self.animationDict = {
+            0: self.retarget_anims_path[0],
+            1: self.retarget_anims_path[1],
+        }
 
-        # Rotation for upright orientation.
+        # Set up a rotation for upright orientation
         rotX = Gf.Rotation(Gf.Vec3d(1, 0, 0), 90).GetQuat()
         rotXQ = Gf.Quatf(rotX)
 
-        # Spawn the default biped for skeletal binding.
+        # Spawn the default biped for skeletal binding
         init_pos_src = Gf.Vec3d(0, 0, 0)
         init_rot_src = Gf.Quatf(1, 0, 0, 0) * rotXQ
-        source_prim_path = "/World/biped_demo"
+        source_prim_path = "/World/Biped_Setup"
         source_agent_prim = self.stage.DefinePrim(source_prim_path, "SkelRoot")
         source_agent_prim.GetReferences().AddReference(self.default_biped_usd)
         xform_src = UsdGeom.Xformable(source_agent_prim)
@@ -251,48 +196,84 @@ class HuNavManager:
             "physxContact:collisionEnabled", Sdf.ValueTypeNames.Bool
         ).Set(False)
 
-        # Spawn each agent from the config.
+        if not hasattr(self, "_asset_cycle") or not self._asset_cycle:
+            self._asset_cycle = self.target_model_paths.copy()
+            random.shuffle(self._asset_cycle)
+
+        # For each agent defined in the agents_x.yaml:
         for agent_name in agent_configs:
             agent_cfg = self.config["hunav_loader"]["ros__parameters"][agent_name]
-            asset_path = choice(self.target_model_paths) # Random model selection
+
+            # Select a different agent model on every loop
+            if not self._asset_cycle:
+                self._asset_cycle = self.target_model_paths.copy()
+                random.shuffle(self._asset_cycle)
+
+            asset_path = self._asset_cycle.pop()
+
             init_pose = agent_cfg["init_pose"]
-            init_pos = Gf.Vec3d(init_pose["x"], init_pose["y"], init_pose["z"])
-            init_rot = Gf.Quatf(1, 0, 0, 0) * rotXQ
+            global_pos = Gf.Vec3d(init_pose["x"], init_pose["y"], init_pose["z"])
+            global_rot = Gf.Quatf(1, 0, 0, 0) * rotXQ
 
-            prim_path = f"/World/{agent_name}"
-            agent_prim = self.stage.DefinePrim(prim_path, "SkelRoot")
-            agent_prim.GetReferences().AddReference(asset_path)
-            UsdPhysics.RigidBodyAPI.Apply(agent_prim)
-            PhysxSchema.PhysxRigidBodyAPI.Apply(agent_prim)
-            xform = UsdGeom.Xformable(agent_prim)
-            xform.AddOrientOp()
-            agent_prim.GetAttribute("xformOp:orient").Set(init_rot_src)
-            agent_prim.GetAttribute("xformOp:translate").Set(init_pos)
-            agent_prim.CreateAttribute(
-                "physxRigidBody:disableGravity", Sdf.ValueTypeNames.Bool
-            ).Set(True)
+            # Create the outer container prim (global transform)
+            container_path = f"/World/Characters/{agent_name}"
+            container = self.stage.DefinePrim(container_path, "Xform")
 
-            self.agents.append(agent_prim)
+            container_xform = UsdGeom.Xformable(container)
+            translate_op = container_xform.AddTranslateOp()
+            orient_op = container_xform.AddOrientOp()
+            translate_op.Set(global_pos)
+            orient_op.Set(global_rot)
+            PhysxSchema.PhysxRigidBodyAPI.Apply(container)
+            UsdPhysics.RigidBodyAPI.Apply(container)
+
+            # Create the inner animated SkelRoot as a child of the container
+            anim_path = container_path + "/Animation"
+            agent_skelroot = self.stage.DefinePrim(anim_path, "SkelRoot")
+            agent_skelroot.GetReferences().AddReference(asset_path)
+
+            # Apply retargeting and create the AnimationGraph on the inner SkelRoot
+            if not self.retarget_flag:
+                setup_anim_retargeting(
+                    self.stage,
+                    agent_skelroot,
+                    self.source_animation_dict,
+                    self.target_animation_parent_path,
+                )
+                self.retarget_flag = True
+
+            # Create and apply AnimationGraph
+            anim_graph_path = create_agent_animation_graph(
+                self.stage,
+                agent_skelroot,
+                idle_anim_path=self.animationDict.get(0),
+                walk_anim_path=self.animationDict.get(1),
+            )
+            apply_animation_graph(
+                self.stage.GetPrimAtPath(find_skelroot_path(agent_skelroot)),
+                anim_graph_path,
+            )
+            self.bound_animations[agent_skelroot.GetPath()] = anim_graph_path
+
+            self.flag_anim[agent_skelroot.GetPath()] = False
+
+            # Add the container (global transform) to the agents list
+            self.agents.append(container)
             self.agent_initial_states.append(
-                {"position": init_pos, "orientation": init_rot}
+                {"position": global_pos, "orientation": global_rot}
             )
 
-            # Apply retargeting using the extension command.
-            self.setup_anim_retargeting(agent_prim)
-            # Assign the retargeted animation to the agent.
-            self.set_animation(agent_prim, [self.animationDict[0]])
-
-        if self.robot_prim_path:
-            rp = self.stage.GetPrimAtPath(self.robot_prim_path)
-            if rp.IsValid():
-                self.robot_prim = rp
+            # Set up the robot prim
+            if self.robot_prim_path:
+                rp = self.stage.GetPrimAtPath(self.robot_prim_path)
+                if rp.IsValid():
+                    self.robot_prim = rp
+                else:
+                    print(
+                        f"[HuNavManager] Warning: no valid robot prim at {self.robot_prim_path}"
+                    )
             else:
-                print(
-                    f"[HuNavManager] Warning: no valid robot prim at {self.robot_prim_path}"
-                )
-        else:
-            print("[HuNavManager] no robot_prim_path provided")
-            
+                print("[HuNavManager] no robot_prim_path provided")
 
     def reset_agent_states(self):
         for agent, init_state in zip(self.agents, self.agent_initial_states):
@@ -385,7 +366,7 @@ class HuNavManager:
         agents_msg.header.stamp.nanosec = now.nanosec
         agents_msg.header.frame_id = "world"
 
-        # Build robot message from self.robot_prim
+        # Build robot message
         robot_msg = self._create_robot_msg()
 
         # For each agent, create and add an Agent message
@@ -521,7 +502,6 @@ class HuNavManager:
                     z=float(hit[1][2]),
                 )
             else:
-                # No hit detected; append a default point
                 pt = Point(x=0.0, y=0.0, z=0.0)
             agent.closest_obs.append(pt)
         return agent
@@ -549,13 +529,22 @@ class HuNavManager:
             return None
 
     def _update_agents(self, updated_agents):
-        rotX = Gf.Rotation(Gf.Vec3d(0, 0, 1), 90).GetQuat()
-        rotXQ = Gf.Quatf(rotX)
-        rotZ = Gf.Rotation(Gf.Vec3d(1, 0, 0), 0).GetQuat()
-        rotZQ = Gf.Quatf(rotZ)
         for upd in updated_agents.agents:
             idx = upd.id - 1
             agent_prim = self.agents[idx]
+            agent_skelroot_prim = self.stage.GetPrimAtPath(
+                agent_prim.GetPath().AppendChild("Animation")
+            )
+
+            anim_graph_path = self.bound_animations.get(agent_skelroot_prim.GetPath())
+
+            if not self.flag_anim[agent_skelroot_prim.GetPath()]:
+                self.stage.GetPrimAtPath(
+                    find_skelroot_path(agent_skelroot_prim)
+                ).SetMetadata("kind", "component")
+                self.flag_anim[agent_skelroot_prim.GetPath()] = True
+
+            char = ag.get_character(str(find_skelroot_path(agent_skelroot_prim)))
 
             # Set position
             new_pos = Gf.Vec3d(
@@ -565,19 +554,37 @@ class HuNavManager:
             )
             agent_prim.GetAttribute("xformOp:translate").Set(new_pos)
 
-            # Set orientation (with corrections applied)
+            # Set orientation
             new_quat = Gf.Quatf(
                 upd.position.orientation.w,
                 upd.position.orientation.x,
                 upd.position.orientation.y,
                 upd.position.orientation.z,
             )
+            # Orientation corrections
+            rotX = Gf.Rotation(Gf.Vec3d(0, 0, 1), 90).GetQuat()
+            rotXQ = Gf.Quatf(rotX)
+            rotZ = Gf.Rotation(Gf.Vec3d(1, 0, 0), 90).GetQuat()
+            rotZQ = Gf.Quatf(rotZ)
+
             agent_prim.GetAttribute("xformOp:orient").Set(new_quat * rotXQ * rotZQ)
+
             lin = Gf.Vec3d(
                 upd.velocity.linear.x,
                 upd.velocity.linear.y,
                 upd.velocity.linear.z,
             )
+
+            # Animation orientation correction
+            rotZQ_anim = Gf.Quatf(Gf.Rotation(Gf.Vec3d(1, 0, 0), 0).GetQuat())
+            global_orient = new_quat * rotXQ * rotZQ_anim
+
+            if char:
+                pos_carb = carb.Float3(new_pos[0], new_pos[1], new_pos[2])
+                real = global_orient.GetReal()
+                imag = global_orient.GetImaginary()
+                rot_carb = carb.Float4(imag[0], imag[1], imag[2], real)
+                char.set_world_transform(pos_carb, rot_carb)
 
             # Set velocities
             agent_prim.GetAttribute("physics:velocity").Set(lin)
@@ -588,12 +595,13 @@ class HuNavManager:
             )
             agent_prim.GetAttribute("physics:angularVelocity").Set(ang)
 
-            # Set animation based on speed
-            speed = max(abs(lin[0]), abs(lin[1]), abs(lin[2]))
-            if speed < 0.02:
-                self.set_animation(agent_prim, [self.animationDict.get(0)])
-            else:
-                self.set_animation(
-                    agent_prim,
-                    [self.animationDict.get(upd.behavior.type, self.animationDict[1])],
+            # Set animation based on agent's speed
+            speed = np.linalg.norm(lin)
+            max_expected_speed = 1.5
+            normalized_speed = np.clip(speed / max_expected_speed, 0.0, 1.0)
+            if anim_graph_path:
+                set_anim_graph_speed(
+                    self.stage, char, anim_graph_path, normalized_speed
                 )
+            else:
+                print(f"No AnimationGraph bound for {agent_prim.GetPath()}")
