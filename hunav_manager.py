@@ -112,6 +112,14 @@ class HuNavManager:
         full_path = os.path.join(os.path.dirname(__file__), relative_path)
         with open(full_path, "r") as file:
             return yaml.safe_load(file)
+        
+    def normalize_angle(self, a: float) -> float:
+        value = a
+        while value <= -math.pi:
+            value += 2 * math.pi
+        while value > math.pi:
+            value -= 2 * math.pi
+        return value
 
     def initialize_hunav_nodes(self):
         process_1 = subprocess.Popen(
@@ -447,7 +455,8 @@ class HuNavManager:
         agent.position.orientation.y = float(ry)
         agent.position.orientation.z = float(rz)
         agent.position.orientation.w = float(rw)
-        agent.yaw = float(rz)
+        _, _, yaw = self.euler_from_quaternion(float(rx), float(ry), float(rz), float(rw))
+        agent.yaw = self.normalize_angle(yaw - math.pi/2.0)
 
         # Velocities
         lin = agent_prim.GetAttribute("physics:velocity").Get()
@@ -491,7 +500,7 @@ class HuNavManager:
         )
 
         # Obstacle detection
-        max_distance = 4.0
+        max_distance = 10.0
         agent.closest_obs = []
         hits = self.get_closest_obstacles(pos, max_distance)
         for hit in hits:
@@ -567,6 +576,7 @@ class HuNavManager:
             rotZ = Gf.Rotation(Gf.Vec3d(1, 0, 0), 90).GetQuat()
             rotZQ = Gf.Quatf(rotZ)
 
+        
             agent_prim.GetAttribute("xformOp:orient").Set(new_quat * rotXQ * rotZQ)
 
             lin = Gf.Vec3d(
