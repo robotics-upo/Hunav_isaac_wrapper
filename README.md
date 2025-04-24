@@ -160,6 +160,7 @@ If you're using the `carter_ROS` robot model and want to enable autonomous navig
 2. In a separate terminal (with your ROS 2 environment sourced), launch the navigation stack:
 
    ```bash
+   cd Hunav_isaac_wrapper
    ros2 launch carter_navigation carter_navigation.launch.py params_file:="config/navigation_params/carter_navigation_params.yaml"
    ```
 
