@@ -1,0 +1,6 @@
+image: hospital.png
+resolution: 0.05
+origin: [-49.62500152587891, -4.675000286102295, 0.0000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196

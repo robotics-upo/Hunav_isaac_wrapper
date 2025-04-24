@@ -17,7 +17,6 @@ config = {
 }
 simulation_app = SimulationApp(config)
 
-import sys
 import os
 import signal
 from rclpy.node import Node
@@ -34,6 +33,8 @@ from world_builder import WorldBuilder
 from hunav_manager import HuNavManager
 
 import omni
+from pxr import Sdf
+import omni.graph.core as og
 
 
 class TeleopHuNavSim(Node):
@@ -44,7 +45,7 @@ class TeleopHuNavSim(Node):
     - Agent management and update (via HuNavManager)
     """
 
-    def __init__(self, map_name, hunav_config):
+    def __init__(self, map_name, hunav_config, robot_name):
         super().__init__("hunav_sim")
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -54,39 +55,87 @@ class TeleopHuNavSim(Node):
         if assets_root_path is None:
             print("Could not find Nucleus root.")
 
-        self.first_run_flag = True
+        # Load USD stage
         self.builder = WorldBuilder(base_path=os.path.dirname(__file__))
         if map_name:
             self.builder.load_map(map_name)
 
-        # Create a World
-        timestep = 1.0 / 60.0
+        # Create World object
+        timestep = 1.0 / 24.0
         self.world = World(
-            stage_units_in_meters=1.0, physics_dt=timestep, rendering_dt=timestep
+            stage_units_in_meters=1, physics_dt=timestep, rendering_dt=timestep
         )
-        self.world.scene.add_default_ground_plane()
 
-        # Robot (Jetbot) set up
-        robot_path = os.path.join(
-            assets_root_path, "Isaac", "Robots", "Jetbot", "jetbot.usd"
-        )
+        if map_name == "empty_world":
+            self.world.scene.add_default_ground_plane()
+
+        # Define configuration for each wheeled robot available
+        robot_configs = {
+            "jetbot": {
+                "name": "Jetbot",
+                "usd_relative_path": os.path.join(
+                    "Isaac", "Robots", "Jetbot", "jetbot.usd"
+                ),
+                "wheel_dof_names": ["left_wheel_joint", "right_wheel_joint"],
+                "wheel_radius": 0.0325,
+                "wheel_base": 0.118,
+            },
+            "create3": {
+                "name": "Create3",
+                "usd_relative_path": os.path.join(
+                    "Isaac", "Robots", "iRobot", "create_3.usd"
+                ),
+                "wheel_dof_names": ["left_wheel_joint", "right_wheel_joint"],
+                "wheel_radius": 0.03575,
+                "wheel_base": 0.233,
+            },
+            "carter": {
+                "name": "Nova_Carter",
+                "usd_relative_path": os.path.join(
+                    "Isaac", "Robots", "Carter", "nova_carter_sensors.usd"
+                ),
+                "wheel_dof_names": ["joint_wheel_left", "joint_wheel_right"],
+                "wheel_radius": 0.14,
+                "wheel_base": 0.413,
+            },
+            "carter_ROS": {
+                "name": "Nova_Carter",
+                "usd_relative_path": os.path.join(
+                    os.path.dirname(__file__),
+                    "config/robots",
+                    "nova_carter_ros2_sensors.usd",
+                ),
+                "wheel_dof_names": ["joint_wheel_left", "joint_wheel_right"],
+                "wheel_radius": 0.14,
+                "wheel_base": 0.413,
+            },
+        }
+
+        if robot_name not in robot_configs:
+            raise ValueError(f"Unsupported robot_name: {robot_name}")
+
+        robot_config = robot_configs[robot_name]
+        robot_path = os.path.join(assets_root_path, robot_config["usd_relative_path"])
+
+        # Add robot to world
+        robot_prim_path = f"/World/{robot_config['name']}"
         self.robot = self.world.scene.add(
             WheeledRobot(
-                prim_path="/World/Robot",
+                prim_path=robot_prim_path,
                 name="Robot",
-                wheel_dof_names=["left_wheel_joint", "right_wheel_joint"],
+                wheel_dof_names=robot_config["wheel_dof_names"],
                 create_robot=True,
                 usd_path=robot_path,
                 position=[0.0, 0.0, 0.0],
+                orientation=[0, 0, 0, 1],
             )
         )
 
-        # Reset World to propagate physics
-        self.world.reset()
-
-        # Create a differential controller (wheel_radius and wheel_base are specific to the robot used)
+        # Create differential drive controller
         self.diff_controller = DifferentialController(
-            name="diff_drive_controller", wheel_radius=0.03, wheel_base=0.1125
+            name="diff_drive_controller",
+            wheel_radius=robot_config["wheel_radius"],
+            wheel_base=robot_config["wheel_base"],
         )
 
         # ROS2 cmd_vel subscriber
@@ -101,23 +150,19 @@ class TeleopHuNavSim(Node):
             node=self,
             world=self.world,
             config_file_path=hunav_config,
-            robot_prim_path="/World/Robot",
+            robot_prim_path=robot_prim_path,
             robot=self.robot,
         )
+
+        self.create_ros_clock_action_graph()
+
         self.hunav.initialize_agents()
         self.hunav.initialize_hunav_nodes()
-
-        self.robot_init_pose = ([0.0, 0.0, 0.0], [0, 0, 0, 1])
-        self.physx_interface = omni.physx.acquire_physx_interface()
-        self.physx_sub = self.physx_interface.subscribe_physics_step_events(
-            self._on_physics_step
-        )
 
     def _signal_handler(self, signum, frame):
         print("\n\nCaught shutdown signal, closing app and stopping hunav nodes...\n\n")
         self.hunav.close_hunav_nodes()
         simulation_app.close()
-        sys.exit(0)
 
     def _cmd_vel_callback(self, msg):
         self.cmd_lin = msg.linear.x
@@ -127,16 +172,75 @@ class TeleopHuNavSim(Node):
         """
         Called automatically by PhysX each physics frame.
         """
-        if self.world.is_playing():
-            # Update hunav agents
-            self.hunav.send_agents_msg()
-            # Apply differential controller command to the robot
-            wheel_action = self.diff_controller.forward([self.cmd_lin, self.cmd_ang])
-            self.robot.apply_action(wheel_action)
+        self.hunav.send_agents_msg()
+
+    def create_ros_clock_action_graph(self, graph_path="/World/ROS2"):
+        try:
+            keys = og.Controller.Keys
+            graph_params = {
+                # Create the necessary nodes.
+                keys.CREATE_NODES: [
+                    # Node for generating a tick on playback.
+                    ("on_playback_tick", "omni.graph.action.OnPlaybackTick"),
+                    # Node for reading the simulation time.
+                    (
+                        "isaac_read_simulation_time",
+                        "omni.isaac.core_nodes.IsaacReadSimulationTime",
+                    ),
+                    # Node to create a ROS2 context.
+                    ("ros2_context", "omni.isaac.ros2_bridge.ROS2Context"),
+                    # Node to publish the clock over ROS2.
+                    ("ros2_publish_clock", "omni.isaac.ros2_bridge.ROS2PublishClock"),
+                ],
+                # Connect outputs to inputs:
+                keys.CONNECT: [
+                    # Connect context output to the publish clock's context input.
+                    (
+                        "ros2_context.outputs:context",
+                        "ros2_publish_clock.inputs:context",
+                    ),
+                    # Connect tick output to publish clock's execIn.
+                    (
+                        "on_playback_tick.outputs:tick",
+                        "ros2_publish_clock.inputs:execIn",
+                    ),
+                    # Connect simulation time output to publish clock's timeStamp.
+                    (
+                        "isaac_read_simulation_time.outputs:simulationTime",
+                        "ros2_publish_clock.inputs:timeStamp",
+                    ),
+                ],
+                keys.SET_VALUES: [
+                    # For the simulation time node.
+                    ("isaac_read_simulation_time.inputs:resetOnStop", True),
+                    ("isaac_read_simulation_time.inputs:swhFrameNumber", 0),
+                    # For the ROS2PublishClock node.
+                    ("ros2_publish_clock.inputs:nodeNamespace", ""),
+                    ("ros2_publish_clock.inputs:qosProfile", ""),
+                    ("ros2_publish_clock.inputs:queueSize", 10),
+                    ("ros2_publish_clock.inputs:timeStamp", 0.0),
+                    ("ros2_publish_clock.inputs:topicName", "clock"),
+                    # For the ROS2Context node.
+                    ("ros2_context.inputs:useDomainIDEnvVar", True),
+                    ("ros2_context.inputs:domain_id", 0),
+                ],
+            }
+            og.Controller.edit(
+                {"graph_path": graph_path, "evaluator_name": "execution"},
+                graph_params,
+            )
+            print(f"Successfully created ROS_Clock action graph at {graph_path}")
+        except Exception as e:
+            print(f"Error creating ROS_Clock action graph: {e}")
 
     def run(self):
+        self.world.reset()
+        self.physx_interface = omni.physx.acquire_physx_interface()
+        self.physx_sub = self.physx_interface.subscribe_physics_step_events(
+            self._on_physics_step
+        )
+        self.hunav.send_agents_msg()
         while simulation_app.is_running():
-            simulation_app.update()
-        # Cleanup
-        self.hunav.close_hunav_nodes()
-        simulation_app.close()
+            self.world.step(render=True)
+            wheel_action = self.diff_controller.forward([self.cmd_lin, self.cmd_ang])
+            self.robot.apply_wheel_actions(wheel_action)

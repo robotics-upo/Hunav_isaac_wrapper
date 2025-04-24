@@ -23,8 +23,6 @@ from std_msgs.msg import Header
 
 # Isaac Sim imports
 import omni
-import omni.usd
-import omni.physx
 import omni.kit.commands
 import omni.isaac.dynamic_control
 from omni.isaac.nucleus import get_assets_root_path
@@ -50,7 +48,7 @@ class HuNavManager:
     """
 
     def __init__(
-        self, node, world, config_file_path=None, robot_prim_path=None, robot=None
+        self, node, world, config_file_path, robot_prim_path, robot
     ):
         self.node = node
         self.stage = world.stage
@@ -71,7 +69,7 @@ class HuNavManager:
         )
 
         # List of target model assets
-        character_root_path = "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/"
+        character_root_path = os.path.join(self.assets_root, "Isaac/People/Characters/")
 
         character_models = [
             "F_Business_02/F_Business_02.usd",
@@ -80,6 +78,11 @@ class HuNavManager:
             "male_adult_construction_01_new/male_adult_construction_01_new.usd",
             "male_adult_construction_05_new/male_adult_construction_05_new.usd",
             "female_adult_police_01_new/female_adult_police_01_new.usd",
+            "female_adult_police_02/female_adult_police_02.usd",
+            "female_adult_police_03_new/female_adult_police_03_new.usd",
+            "male_adult_police_04/male_adult_police_04.usd",
+            "original_female_adult_business_02/female_adult_business_02.usd",
+            "original_female_adult_medical_01/female_adult_medical_01.usd",            
         ]
 
         self.target_model_paths = [
@@ -97,16 +100,13 @@ class HuNavManager:
 
         self.robot_prim = None
 
-        # Sensor offset above the agent's base to avoid getting undesired ground plane detections
-        self.sensor_height = 0.1
-
         if config_file_path is not None:
             self.config = self._load_yaml(config_file_path)
         else:
             self.config = None
 
         # Define the default character source asset (for animation retargeting)
-        self.default_biped_usd = "omniverse://localhost/NVIDIA/Assets/Isaac/2023.1.1/Isaac/People/Characters/Biped_Setup.usd"
+        self.default_biped_usd = os.path.join(self.assets_root, "Isaac/People/Characters/Biped_Setup.usd")
 
     def _load_yaml(self, relative_path):
         full_path = os.path.join(os.path.dirname(__file__), relative_path)
@@ -204,20 +204,18 @@ class HuNavManager:
             "physxContact:collisionEnabled", Sdf.ValueTypeNames.Bool
         ).Set(False)
 
-        if not hasattr(self, "_asset_cycle") or not self._asset_cycle:
-            self._asset_cycle = self.target_model_paths.copy()
-            random.shuffle(self._asset_cycle)
+        asset_cycle = self.target_model_paths.copy()
+        random.shuffle(asset_cycle)
 
         # For each agent defined in the agents_x.yaml:
         for agent_name in agent_configs:
             agent_cfg = self.config["hunav_loader"]["ros__parameters"][agent_name]
 
             # Select a different agent model on every loop
-            if not self._asset_cycle:
-                self._asset_cycle = self.target_model_paths.copy()
-                random.shuffle(self._asset_cycle)
-
-            asset_path = self._asset_cycle.pop()
+            if len(asset_cycle) == 0:
+                asset_cycle = self.target_model_paths.copy()
+                random.shuffle(asset_cycle)
+            asset_path = asset_cycle.pop()
 
             init_pose = agent_cfg["init_pose"]
             global_pos = Gf.Vec3d(init_pose["x"], init_pose["y"], init_pose["z"])
@@ -271,17 +269,18 @@ class HuNavManager:
                 {"position": global_pos, "orientation": global_rot}
             )
 
-            # Set up the robot prim
-            if self.robot_prim_path:
-                rp = self.stage.GetPrimAtPath(self.robot_prim_path)
-                if rp.IsValid():
-                    self.robot_prim = rp
-                else:
-                    print(
-                        f"[HuNavManager] Warning: no valid robot prim at {self.robot_prim_path}"
-                    )
+        # Set up the robot prim
+        if self.robot_prim_path:
+            rp = self.stage.GetPrimAtPath(self.robot_prim_path)
+            if rp.IsValid():
+                self.robot_prim = rp
             else:
-                print("[HuNavManager] no robot_prim_path provided")
+                print(
+                    f"[HuNavManager] Warning: no valid robot prim at {self.robot_prim_path}"
+                )
+        else:
+            print("[HuNavManager] no robot_prim_path provided")
+                
 
     def reset_agent_states(self):
         for agent, init_state in zip(self.agents, self.agent_initial_states):
@@ -315,30 +314,49 @@ class HuNavManager:
         return directions
 
     def get_closest_obstacles(
-        self, agent_position: Gf.Vec3d, max_distance: float, num_lasers: int = 90
+        self,
+        agent_position: Gf.Vec3d,
+        max_distance: float,
+        sensor_offsets: List[float],
+        num_lasers: int = 90,
     ) -> List[Tuple[float, Optional[Gf.Vec3f]]]:
         """
-        Cast rays from the agent's sensor origin (with an offset) in fixed directions.
-
-        Returns a list of tuples (hit_distance, hit_position) for each ray.
-        If no obstacle is hit, hit_position is set to None.
+        Cast rays from the agent's sensor origins at multiple heights in fixed directions.
+        For each ray direction, iterate over the provided sensor_offsets and select the hit
+        with the smallest distance (if any).
         """
-        sensor_origin = Gf.Vec3f(
-            float(agent_position[0]),
-            float(agent_position[1]),
-            float(agent_position[2]) + self.sensor_height,
-        )
         directions = self.generate_lasers(num_lasers)
-        closest_hits = []
         scene_query = omni.physx.get_physx_scene_query_interface()
+        closest_hits = []
+
+        # Iterate over each ray direction
         for direction in directions:
-            hit = scene_query.raycast_closest(sensor_origin, direction, max_distance)
-            if hit.get("hit", False):
-                distance = hit.get("distance", max_distance)
-                hit_position = hit.get("position")
-                closest_hits.append((distance, hit_position))
+            best_distance = max_distance
+            best_hit = None
+            hit_found = False
+            # Test each sensor offset
+            for offset in sensor_offsets:
+                sensor_origin = Gf.Vec3f(
+                    float(agent_position[0]),
+                    float(agent_position[1]),
+                    float(agent_position[2]) + offset,
+                )
+                hit = scene_query.raycast_closest(
+                    sensor_origin, direction, max_distance
+                )
+                if hit.get("hit", False):
+                    hit_found = True
+                    distance = hit.get("distance", max_distance)
+                    # Keep the closest hit
+                    if distance < best_distance:
+                        best_distance = distance
+                        best_hit = hit.get("position")
+            # If at least one hit was found, append the best hit; else, use defaults
+            if hit_found:
+                closest_hits.append((best_distance, best_hit))
             else:
                 closest_hits.append((max_distance, None))
+
         return closest_hits
 
     def euler_from_quaternion(
@@ -455,8 +473,10 @@ class HuNavManager:
         agent.position.orientation.y = float(ry)
         agent.position.orientation.z = float(rz)
         agent.position.orientation.w = float(rw)
-        _, _, yaw = self.euler_from_quaternion(float(rx), float(ry), float(rz), float(rw))
-        agent.yaw = self.normalize_angle(yaw - math.pi/2.0)
+        _, _, yaw = self.euler_from_quaternion(
+            float(rx), float(ry), float(rz), float(rw)
+        )
+        agent.yaw = self.normalize_angle(yaw - math.pi / 2.0)
 
         # Velocities
         lin = agent_prim.GetAttribute("physics:velocity").Get()
@@ -500,9 +520,10 @@ class HuNavManager:
         )
 
         # Obstacle detection
-        max_distance = 10.0
+        max_distance = 4.0
         agent.closest_obs = []
-        hits = self.get_closest_obstacles(pos, max_distance)
+        sensor_offsets = [0.1, 0.5, 1.0]
+        hits = self.get_closest_obstacles(pos, max_distance, sensor_offsets)
         for hit in hits:
             if hit[1] is not None:
                 pt = Point(
@@ -576,7 +597,6 @@ class HuNavManager:
             rotZ = Gf.Rotation(Gf.Vec3d(1, 0, 0), 90).GetQuat()
             rotZQ = Gf.Quatf(rotZ)
 
-        
             agent_prim.GetAttribute("xformOp:orient").Set(new_quat * rotXQ * rotZQ)
 
             lin = Gf.Vec3d(
