@@ -62,7 +62,7 @@ It supports both **ROS 2 teleoperation** and **autonomous navigation (Nav2)**, s
 
 - **Ubuntu 22.04 LTS**
 - [**HuNavSim**](https://github.com/robotics-upo/hunav_sim)
-- [**NVIDIA Isaac Sim (Workstation Installation)**](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html#)
+- [**NVIDIA Isaac Sim (Workstation Installation)**](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html)
 
 - **Python 3.8+**  
 
@@ -234,7 +234,7 @@ If you're using the `carter_ROS` robot model and want to enable autonomous navig
 This work is carried out as part of the **HunavSim 2.0** project, _“A Human Navigation Simulator for Benchmarking Human-Aware Robot Navigation”_, supported under the [**euROBIN 2nd Open Call – Technology Exchange Programme**](https://www.eurobin-project.eu/index.php/showroom/news/47-2nd-call-eurobin-technology-exchange-programme) (**euROBIN_2OC_2**), funded by the **European Union's Horizon Europe** research and innovation programme under grant agreement **No. 101070596**.
 
 <p align="left">
-  <img src="https://commission.europa.eu/sites/default/files/styles/embed_medium/public/2025-03/ec-logo-horiz_en.png" alt="European Commission Logo" width="160"/>
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/European_Commission.svg/300px-European_Commission.svg.png" width="160"/>
   &nbsp;&nbsp;&nbsp;
-  <img src="https://www.eurobin-project.eu/images/euROBIN_img/euROBIN_logo%20_payoff.png" alt="euROBIN Logo" width="160"/>
+  <img src="https://vib.ai.uni-bremen.de/img/euROBIN-Logo.png" alt="euROBIN Logo" width="160"/>
 </p>
