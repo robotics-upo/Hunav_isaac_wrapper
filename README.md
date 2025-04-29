@@ -11,18 +11,18 @@ This repository is actively developed and subject to improvements.
 ### ✅ **Tested Configurations**  
 
 - **ROS 2 Humble**  
-- **Isaac Sim 4.2**  
+- **Isaac Sim 4.5**  
 - **Ubuntu 22.04 LTS**  
 
 ---
 
 ## 🔹 **Overview**  
 
-**HuNav Isaac Wrapper** is a modular simulation framework that integrates the [HuNavSim](https://github.com/robotics-upo/hunav_sim) human navigation framework into **NVIDIA Isaac Sim**, enabling realistic multi-agent behavior with physics-based animation and **ROS 2** interoperability.
+**HuNav Isaac Wrapper** is a modular simulation framework that integrates the [HuNavSim](https://github.com/robotics-upo/hunav_sim) human navigation simulator into **NVIDIA Isaac Sim**, enabling realistic multi-agent behavior with physics-based animation and **ROS 2** interoperability.
 
 It supports both **ROS 2 teleoperation** and **autonomous navigation (Nav2)**, scenario loading, dynamic agent configuration, and multiple robot models.
 
-> This wrapper is built for research in **human-robot interaction**, **social navigation**, and **simulation-based validation of social navigation policies**.
+*This wrapper is built for research in **human-robot interaction**, **social navigation**, and **simulation-based validation of social navigation policies**.*
 
 ---
 
@@ -62,7 +62,7 @@ It supports both **ROS 2 teleoperation** and **autonomous navigation (Nav2)**, s
 
 - **Ubuntu 22.04 LTS**
 - [**HuNavSim**](https://github.com/robotics-upo/hunav_sim)
-- [**NVIDIA Isaac Sim**](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html#) (Tested on version 4.2.0)
+- [**NVIDIA Isaac Sim (Workstation Installation)**](https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html#)
 
 - **Python 3.8+**  
 
@@ -81,14 +81,27 @@ cd Hunav_isaac_wrapper
 
 ### 2. Configure Your Environment
 
-- Launch Isaac Sim’s Python interpreter or set up the environment so that all Omniverse APIs are available.
-- **The provided startup bash script (`startup_hunav_isaac.sh`) should automatically load the correct environment.**
+#### Enable Required Extensions
+
+To ensure all required dependencies are active:
+
+- Replace the existing `isaacsim.exp.base.kit` file inside your Isaac Sim installation (under `~/isaacsim/apps/`) with the one provided in this repository:
+
+  ```bash
+  cp ~/Hunav_isaac_wrapper/isaacsim.exp.base.kit ~/isaacsim/apps/
+  ```
+
+  ⚠️ **Important**: This file ensures that essential extensions (e.g., animation retargeting, ROS 2 bridge) are preloaded at startup. **Without this step, the wrapper may not function correctly**.
+  
+#### Load the Correct Python Environment
+
+- **The provided startup bash script (`startup_hunav_isaac.sh`) should automatically load the correct Python environment for Isaac Sim.**
 
 ### 3. ROS 2 Setup
 
 Ensure that ROS 2 is installed and sourced before launching the simulation.
 
-> If needed, follow this guide ([ROS2 Installation](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html)) to make sure the ROS 2 workspace environment is setup correctly.
+**Note**: If needed, follow this guide ([ROS2 Installation](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html)) to make sure the ROS 2 workspace environment is setup correctly.
 
 ### 4. Configure Your Scene, Agents, and Robot
 
@@ -117,13 +130,14 @@ Each scenario is paired with a YAML file in the `config/` folder that defines th
   - **SFM weights**: Tune the social force model for realistic crowd behavior.
   - **Behavior type**: Choose how agents behave.
 
-> Always pair the scenario with its corresponding agent YAML to avoid misaligned goals or initial agent positions.
+**Always pair the scenario with its corresponding agent YAML to avoid misaligned goals or initial agent positions**.
 
 #### 🤖 Robot Configuration
 
 - Select your desired robot from the available options in `main.py`:
   - `jetbot`, `create3`, `carter`, or `carter_ROS`
-  > **Note:** For `carter_ROS`, make sure to unzip the `nova_carter_ros2_sensors` package located in `config/robots/`.
+
+   **Note:** For `carter_ROS`, make sure to unzip the `nova_carter_ros2_sensors` package located in `config/robots/`.
 - **Carter** robot also supports **ROS 2 Navigation (Nav2)** for autonomous navigation (see *Teleoperation and Simulation* section for launch instructions).
 
 ### 5. Launch the Simulation
@@ -131,7 +145,7 @@ Each scenario is paired with a YAML file in the `config/` folder that defines th
 Run the startup script:
 
 ```bash
-./startup_hunav_isaac.sh
+. startup_hunav_isaac.sh
 ```
 
 This script will:
@@ -149,7 +163,7 @@ This script will:
 
 #### Simulation
 
-- Agent states (position, behavior, animation) are updated every physics step.
+- Agent states (position, behavior, animation) are updated on every physics step.
 - The robot can be teleoperated in real-time, and agents navigate according to their goals and behaviors.
 
 #### ROS 2 Navigation (Nav2) – Carter Robot Only
@@ -214,3 +228,13 @@ If you're using the `carter_ROS` robot model and want to enable autonomous navig
 - If AnimationGraph is not applying correctly, verify that it is correctly assigned to the agent's **SkelRoot** and that transformations are applied properly.
 
 ---
+
+## Acknowledgments
+
+This work is carried out as part of the **HunavSim 2.0** project, _“A Human Navigation Simulator for Benchmarking Human-Aware Robot Navigation”_, supported under the [**euROBIN 2nd Open Call – Technology Exchange Programme**](https://www.eurobin-project.eu/index.php/showroom/news/47-2nd-call-eurobin-technology-exchange-programme) (**euROBIN_2OC_2**), funded by the **European Union's Horizon Europe** research and innovation programme under grant agreement **No. 101070596**.
+
+<p align="left">
+  <img src="https://commission.europa.eu/sites/default/files/styles/embed_medium/public/2025-03/ec-logo-horiz_en.png" alt="European Commission Logo" width="160"/>
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://www.eurobin-project.eu/images/euROBIN_img/euROBIN_logo%20_payoff.png" alt="euROBIN Logo" width="160"/>
+</p>
