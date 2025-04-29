@@ -24,9 +24,8 @@ from std_msgs.msg import Header
 # Isaac Sim imports
 import omni
 import omni.kit.commands
-import omni.isaac.dynamic_control
-from omni.isaac.nucleus import get_assets_root_path
-from omni.isaac.core.utils.extensions import disable_extension, enable_extension
+from isaacsim.storage.native import get_assets_root_path
+from isaacsim.core.utils.extensions import enable_extension
 
 from pxr import Sdf, Gf, UsdGeom, UsdPhysics, PhysxSchema
 import carb
@@ -35,7 +34,6 @@ import carb
 from animation_utils import *
 
 enable_extension("omni.anim.retarget.core")
-disable_extension("omni.anim.skelJoint")
 
 import omni.anim.graph.core as ag
 
@@ -58,10 +56,6 @@ class HuNavManager:
 
         self.assets_root = get_assets_root_path()
         self._usd_context = omni.usd.get_context()
-
-        self.dc_interface = (
-            omni.isaac.dynamic_control._dynamic_control.acquire_dynamic_control_interface()
-        )
 
         # HuNavSim's ROS 2 service client
         self.compute_agents_client = self.node.create_client(

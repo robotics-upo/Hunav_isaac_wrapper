@@ -10,32 +10,31 @@ Contains the TeleopHuNavSim class which combines:
 from isaacsim import SimulationApp
 
 # Start Isaac Sim
-config = {
-    "width": "1280",
-    "height": "720",
+CONFIG = {
+    "width": 1280,
+    "height": 720,
+    "sync_loads": True,
     "headless": False,
+    "renderer": "RaytracedLighting",
 }
-simulation_app = SimulationApp(config)
+simulation_app = SimulationApp(CONFIG)
 
 import os
 import signal
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from omni.isaac.core import World
-from omni.isaac.nucleus import get_assets_root_path
-from omni.isaac.wheeled_robots.robots import WheeledRobot
-from omni.isaac.wheeled_robots.controllers.differential_controller import (
+from isaacsim.core.api import World
+from isaacsim.storage.native import get_assets_root_path
+from isaacsim.robot.wheeled_robots.robots import WheeledRobot
+from isaacsim.robot.wheeled_robots.controllers.differential_controller import (
     DifferentialController,
 )
-
+import omni
+import omni.graph.core as og
+ 
 # Import the WorldBuilder and HuNavManager modules.
 from world_builder import WorldBuilder
 from hunav_manager import HuNavManager
-
-import omni
-from pxr import Sdf
-import omni.graph.core as og
-
 
 class TeleopHuNavSim(Node):
     """
@@ -185,12 +184,12 @@ class TeleopHuNavSim(Node):
                     # Node for reading the simulation time.
                     (
                         "isaac_read_simulation_time",
-                        "omni.isaac.core_nodes.IsaacReadSimulationTime",
+                        "isaacsim.core.nodes.IsaacReadSimulationTime",
                     ),
                     # Node to create a ROS2 context.
-                    ("ros2_context", "omni.isaac.ros2_bridge.ROS2Context"),
+                    ("ros2_context", "isaacsim.ros2.bridge.ROS2Context"),
                     # Node to publish the clock over ROS2.
-                    ("ros2_publish_clock", "omni.isaac.ros2_bridge.ROS2PublishClock"),
+                    ("ros2_publish_clock", "isaacsim.ros2.bridge.ROS2PublishClock"),
                 ],
                 # Connect outputs to inputs:
                 keys.CONNECT: [
