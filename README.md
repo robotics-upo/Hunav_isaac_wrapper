@@ -236,5 +236,5 @@ This work is carried out as part of the **HunavSim 2.0** project, _“A Human Na
 <p align="left">
   <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/European_Commission.svg/300px-European_Commission.svg.png" width="160"/>
   &nbsp;&nbsp;&nbsp;
-  <img src="https://vib.ai.uni-bremen.de/img/euROBIN-Logo.png" alt="euROBIN Logo" width="160"/>
+  <img src="https://www.eurobin-project.eu/images/2025/03/15/eurobin_logo-_payoff.png" alt="euROBIN Logo" width="160"/>
 </p>
