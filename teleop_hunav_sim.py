@@ -24,17 +24,17 @@ import signal
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from isaacsim.core.api import World
-from isaacsim.storage.native import get_assets_root_path
 from isaacsim.robot.wheeled_robots.robots import WheeledRobot
 from isaacsim.robot.wheeled_robots.controllers.differential_controller import (
     DifferentialController,
 )
 import omni
 import omni.graph.core as og
- 
+
 # Import the WorldBuilder and HuNavManager modules.
 from world_builder import WorldBuilder
 from hunav_manager import HuNavManager
+
 
 class TeleopHuNavSim(Node):
     """
@@ -50,9 +50,7 @@ class TeleopHuNavSim(Node):
         signal.signal(signal.SIGTERM, self._signal_handler)
 
         # Assets root
-        assets_root_path = get_assets_root_path()
-        if assets_root_path is None:
-            print("Could not find Nucleus root.")
+        assets_root_path = os.path.join(os.path.dirname(__file__), "config/robots")
 
         # Load USD stage
         self.builder = WorldBuilder(base_path=os.path.dirname(__file__))
@@ -72,38 +70,28 @@ class TeleopHuNavSim(Node):
         robot_configs = {
             "jetbot": {
                 "name": "Jetbot",
-                "usd_relative_path": os.path.join(
-                    "Isaac", "Robots", "Jetbot", "jetbot.usd"
-                ),
+                "usd_relative_path": os.path.join("jetbot", "jetbot.usd"),
                 "wheel_dof_names": ["left_wheel_joint", "right_wheel_joint"],
                 "wheel_radius": 0.0325,
                 "wheel_base": 0.118,
             },
             "create3": {
                 "name": "Create3",
-                "usd_relative_path": os.path.join(
-                    "Isaac", "Robots", "iRobot", "create_3.usd"
-                ),
+                "usd_relative_path": os.path.join("irobot", "create_3.usd"),
                 "wheel_dof_names": ["left_wheel_joint", "right_wheel_joint"],
                 "wheel_radius": 0.03575,
                 "wheel_base": 0.233,
             },
             "carter": {
                 "name": "Nova_Carter",
-                "usd_relative_path": os.path.join(
-                    "Isaac", "Robots", "Carter", "nova_carter_sensors.usd"
-                ),
+                "usd_relative_path": os.path.join("carter", "nova_carter_sensors.usd"),
                 "wheel_dof_names": ["joint_wheel_left", "joint_wheel_right"],
                 "wheel_radius": 0.14,
                 "wheel_base": 0.413,
             },
             "carter_ROS": {
                 "name": "Nova_Carter",
-                "usd_relative_path": os.path.join(
-                    os.path.dirname(__file__),
-                    "config/robots",
-                    "nova_carter_ros2_sensors.usd",
-                ),
+                "usd_relative_path": "nova_carter_ros2_sensors.usd",
                 "wheel_dof_names": ["joint_wheel_left", "joint_wheel_right"],
                 "wheel_radius": 0.14,
                 "wheel_base": 0.413,
@@ -172,6 +160,8 @@ class TeleopHuNavSim(Node):
         Called automatically by PhysX each physics frame.
         """
         self.hunav.send_agents_msg()
+        wheel_action = self.diff_controller.forward([self.cmd_lin, self.cmd_ang])
+        self.robot.apply_wheel_actions(wheel_action)
 
     def create_ros_clock_action_graph(self, graph_path="/World/ROS2"):
         try:
@@ -240,6 +230,7 @@ class TeleopHuNavSim(Node):
         )
         self.hunav.send_agents_msg()
         while simulation_app.is_running():
-            self.world.step(render=True)
-            wheel_action = self.diff_controller.forward([self.cmd_lin, self.cmd_ang])
-            self.robot.apply_wheel_actions(wheel_action)
+            # self.world.step(render=True)
+            simulation_app.update()
+            # wheel_action = self.diff_controller.forward([self.cmd_lin, self.cmd_ang])
+            # self.robot.apply_wheel_actions(wheel_action)

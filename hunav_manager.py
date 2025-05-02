@@ -45,16 +45,16 @@ class HuNavManager:
     and handling ROS 2 communications.
     """
 
-    def __init__(
-        self, node, world, config_file_path, robot_prim_path, robot
-    ):
+    def __init__(self, node, world, config_file_path, robot_prim_path, robot):
         self.node = node
         self.stage = world.stage
         self.robot_prim_path = robot_prim_path
         self.robot_obj = robot
         self.world = world
 
-        self.assets_root = get_assets_root_path()
+        self.people_assets_root = os.path.join(
+            os.path.dirname(__file__), "people_assets"
+        )
         self._usd_context = omni.usd.get_context()
 
         # HuNavSim's ROS 2 service client
@@ -63,7 +63,7 @@ class HuNavManager:
         )
 
         # List of target model assets
-        character_root_path = os.path.join(self.assets_root, "Isaac/People/Characters/")
+        character_root_path = os.path.join(self.people_assets_root, "characters/")
 
         character_models = [
             "F_Business_02/F_Business_02.usd",
@@ -76,7 +76,7 @@ class HuNavManager:
             "female_adult_police_03_new/female_adult_police_03_new.usd",
             "male_adult_police_04/male_adult_police_04.usd",
             "original_female_adult_business_02/female_adult_business_02.usd",
-            "original_female_adult_medical_01/female_adult_medical_01.usd",            
+            "original_female_adult_medical_01/female_adult_medical_01.usd",
         ]
 
         self.target_model_paths = [
@@ -100,13 +100,15 @@ class HuNavManager:
             self.config = None
 
         # Define the default character source asset (for animation retargeting)
-        self.default_biped_usd = os.path.join(self.assets_root, "Isaac/People/Characters/Biped_Setup.usd")
+        self.default_biped_usd = os.path.join(
+            self.people_assets_root, "characters/Biped_Setup.usd"
+        )
 
     def _load_yaml(self, relative_path):
         full_path = os.path.join(os.path.dirname(__file__), relative_path)
         with open(full_path, "r") as file:
             return yaml.safe_load(file)
-        
+
     def normalize_angle(self, a: float) -> float:
         value = a
         while value <= -math.pi:
@@ -146,9 +148,7 @@ class HuNavManager:
         agent_configs = self.config["hunav_loader"]["ros__parameters"]["agents"]
 
         # Create animations using the auxiliary module functions
-        animations_path = os.path.join(
-            self.assets_root, "Isaac", "People", "Animations"
-        )
+        animations_path = os.path.join(self.people_assets_root, "animations")
         walk_anim = create_animation(
             self.stage,
             "/World/Animations/WalkLoop",
@@ -274,7 +274,6 @@ class HuNavManager:
                 )
         else:
             print("[HuNavManager] no robot_prim_path provided")
-                
 
     def reset_agent_states(self):
         for agent, init_state in zip(self.agents, self.agent_initial_states):
