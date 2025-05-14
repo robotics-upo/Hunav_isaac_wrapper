@@ -175,7 +175,7 @@ If you're using the `carter_ROS` robot model and want to enable autonomous navig
 
    ```bash
    cd Hunav_isaac_wrapper
-   ros2 launch carter_navigation carter_navigation.launch.py params_file:="config/navigation_params/carter_navigation_params.yaml"
+   ros2 launch carter_navigation carter_navigation.launch.py params_file:="config/navigation_params/carter_navigation_params.yaml" map:="scenarios/occupancy_maps/warehouse.yaml"
    ```
 
 ---
