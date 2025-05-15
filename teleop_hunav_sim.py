@@ -60,7 +60,7 @@ class TeleopHuNavSim(Node):
             self.builder.load_map(map_name)
 
         # Create World object
-        timestep = 1.0 / 24.0
+        timestep = 1.0 / 20.0
         self.world = World(
             stage_units_in_meters=1, physics_dt=timestep, rendering_dt=timestep
         )

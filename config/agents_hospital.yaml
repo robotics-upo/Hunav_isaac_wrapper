@@ -25,9 +25,9 @@ hunav_loader:
         once: true
         vel: 0.6
         dist: 0.0
-        goal_force_factor: 5.0
-        obstacle_force_factor: 150.0
-        social_force_factor: 10.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 5.0
+        social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
         x: -9.5
@@ -66,9 +66,9 @@ hunav_loader:
         once: true
         vel: 0.6
         dist: 0.0
-        goal_force_factor: 5.0
-        obstacle_force_factor: 150.0
-        social_force_factor: 10.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 5.0
+        social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
         x: -1.9
@@ -107,9 +107,9 @@ hunav_loader:
         once: true
         vel: 0.6
         dist: 0.0
-        goal_force_factor: 5.0
-        obstacle_force_factor: 150.0
-        social_force_factor: 10.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 5.0
+        social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
         x: 2.0
@@ -148,9 +148,9 @@ hunav_loader:
         once: true
         vel: 0.6
         dist: 0.0
-        goal_force_factor: 5.0
-        obstacle_force_factor: 150.0
-        social_force_factor: 10.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 5.0
+        social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
         x: -32.0
@@ -189,9 +189,9 @@ hunav_loader:
         once: true
         vel: 0.6
         dist: 0.0
-        goal_force_factor: 5.0
-        obstacle_force_factor: 150.0
-        social_force_factor: 10.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 5.0
+        social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
         x: 5.0
@@ -230,9 +230,9 @@ hunav_loader:
         once: true
         vel: 0.6
         dist: 0.0
-        goal_force_factor: 5.0
-        obstacle_force_factor: 150.0
-        social_force_factor: 10.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 5.0
+        social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
         x: -31.0
@@ -271,9 +271,9 @@ hunav_loader:
         once: true
         vel: 0.6
         dist: 0.0
-        goal_force_factor: 5.0
-        obstacle_force_factor: 150.0
-        social_force_factor: 10.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 5.0
+        social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
         x: 1.0
@@ -312,9 +312,9 @@ hunav_loader:
         once: true
         vel: 0.6
         dist: 0.0
-        goal_force_factor: 5.0
-        obstacle_force_factor: 150.0
-        social_force_factor: 10.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 5.0
+        social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
         x: -32.0
@@ -353,9 +353,9 @@ hunav_loader:
         once: true
         vel: 0.6
         dist: 0.0
-        goal_force_factor: 5.0
-        obstacle_force_factor: 150.0
-        social_force_factor: 10.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 5.0
+        social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
         x: 19.0
