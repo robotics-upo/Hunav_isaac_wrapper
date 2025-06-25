@@ -20,7 +20,7 @@ This repository is actively developed and subject to improvements.
 
 **HuNav Isaac Wrapper** is a modular simulation framework that integrates the [HuNavSim](https://github.com/robotics-upo/hunav_sim) human navigation simulator into **NVIDIA Isaac Sim**, enabling realistic multi-agent behavior with physics-based animation and **ROS 2** interoperability.
 
-It supports both **ROS 2 teleoperation** and **autonomous navigation (Nav2)**, scenario loading, dynamic agent configuration, and multiple robot models.
+It supports both **ROS 2 teleoperation** and **autonomous navigation (Nav2)**, world loading, dynamic agent configuration, and multiple robot models.
 
 *This wrapper is built for research in **human-robot interaction**, **social navigation**, and **simulation-based validation of social navigation policies**.*
 
@@ -29,8 +29,8 @@ It supports both **ROS 2 teleoperation** and **autonomous navigation (Nav2)**, s
 ## 🔹 Features  
 
 - **Modular Architecture:**  
-  - `main.py`: Launches simulation entry point.
-  - `world_builder.py`: Loads USD scenario files.
+  - `main.py`: Interactive launcher providing a command-line interface for configuration selection (agent files, worlds, robots) and simulation startup.
+  - `world_builder.py`: Loads USD world files.
   - `hunav_manager.py`: Handles agent creation, communication with HuNavSim services, and manages physics, animations, and obstacle detection.
   - `teleop_hunav_sim.py`: Manages HuNavSim initialization, updates agent states, and handles the ROS 2 /cmd_vel interface for robot control.
   - `animation_utils.py`: Utilities for AnimationGraph setup and retargeting.
@@ -41,7 +41,7 @@ It supports both **ROS 2 teleoperation** and **autonomous navigation (Nav2)**, s
   - Supports animation **retargeting**, applying a single set of animations to different characters via **USD SkelAnimation** and the **Omni Anim Retargeting extension**.
 
 - **Flexible Agent Configuration:**  
-  - YAML files (in `config/`) define agent spawn positions, navigation goals, SFM parameters, and behavior profiles for each scenario.
+  - YAML files (in `scenarios/`) define agent spawn positions, navigation goals, SFM parameters, and behavior profiles for each world.
 
 - **Multiple Robot Models:**  
   - Includes `jetbot`, `create3`, `carter`, and `carter_ROS` models.
@@ -105,11 +105,11 @@ Ensure that ROS 2 is installed and sourced before launching the simulation.
 
 ### 4. Configure Your Scene, Agents, and Robot
 
-The simulation setup is initialized in `main.py`, where you can define the scenario, agent configuration, and robot model to use.
+The simulation setup is configured through the interactive launcher in `main.py`, which provides a menu-driven interface to select the world, agent configuration, and robot model.
 
 #### 🗺️ Scene Setup
 
-The repository includes multiple pre-configured scenario USD files located in the `scenarios/` folder, each reflecting a different type of environment:
+The repository includes multiple pre-configured USD files located in the `worlds/` folder, each reflecting a different type of environment:
 
 - `warehouse.usd`: Industrial layout with shelves and various obstacles.
 - `hospital.usd`: Medical environment with corridors and rooms.
@@ -118,7 +118,7 @@ The repository includes multiple pre-configured scenario USD files located in th
 
 #### 🧍 Agents Configuration
 
-Each scenario is paired with a YAML file in the `config/` folder that defines the HuNavSim agents to be used within it.
+Each world is paired with a YAML file in the `scenarios/` folder that defines the HuNavSim agents to be used within it.
 
 - **Available configuration files:**
   - `agents_warehouse.yaml` → for `warehouse.usd`
@@ -130,11 +130,11 @@ Each scenario is paired with a YAML file in the `config/` folder that defines th
   - **SFM weights**: Tune the social force model for realistic crowd behavior.
   - **Behavior type**: Choose how agents behave.
 
-**Always pair the scenario with its corresponding agent YAML to avoid misaligned goals or initial agent positions**.
+**Always pair the world with its corresponding agent YAML to avoid misaligned goals or initial agent positions**.
 
 #### 🤖 Robot Configuration
 
-- Select your desired robot from the available options in `main.py`:
+- The interactive launcher will prompt you to select your desired robot from the available options:
   - `jetbot`, `create3`, `carter`, or `carter_ROS`
 
    **Note:** For `carter_ROS`, make sure to unzip the `nova_carter_ros2_sensors` package located in `config/robots/`.
@@ -150,9 +150,12 @@ Run the startup script:
 
 This script will:
 
-- Launch Isaac Sim (with a GUI unless headless mode is specified).
-- Load the specified scenario.
-- Spawn agents based on the YAML configuration.
+- Launch Isaac Sim.
+- Start the interactive launcher that will guide you through:
+  - Selecting an agent configuration (built-in presets or custom YAML files)
+  - Choosing the appropriate world (automatically inferred from the configuration file)
+  - Selecting the robot model
+- Load the specified world and spawn agents based on your selections.
 - Apply physics, animations, and initialize integration with ROS 2 and HuNavSim.
 
 ### 6. Teleoperation and Simulation
@@ -175,7 +178,7 @@ If you're using the `carter_ROS` robot model and want to enable autonomous navig
 
    ```bash
    cd Hunav_isaac_wrapper
-   ros2 launch carter_navigation carter_navigation.launch.py params_file:="config/navigation_params/carter_navigation_params.yaml" map:="scenarios/occupancy_maps/warehouse.yaml"
+   ros2 launch carter_navigation carter_navigation.launch.py params_file:="config/navigation_params/carter_navigation_params.yaml" map:="maps/warehouse.yaml"
    ```
 
 ---

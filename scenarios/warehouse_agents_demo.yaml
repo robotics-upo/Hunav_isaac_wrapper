@@ -1,0 +1,104 @@
+hunav_loader:
+  ros__parameters:
+    simulator: Isaac Sim
+    map: warehouse
+    yaml_base_name: warehouse_agents_demo
+    publish_people: true
+    global_goals:
+      1:
+        x: -4.5
+        y: -3.0
+      2:
+        x: -3.0
+        y: -1.7
+      3:
+        x: -2.57
+        y: 0.0
+      4:
+        x: -7.56
+        y: -1.524
+      5:
+        x: -7.88
+        y: -2.524
+      6:
+        x: -7.56
+        y: 8.76
+      7:
+        x: -7.87
+        y: 8.96
+      8:
+        x: -2.35
+        y: 5.1
+      9:
+        x: 0.22
+        y: -5.51
+      10:
+        x: 3.91
+        y: -4.51
+      11:
+        x: 2.0
+        y: 3.5
+      12:
+        x: 3.0
+        y: 3.5
+      13:
+        x: -2.35
+        y: 5.1
+      14:
+        x: -2.57
+        y: 7.64
+      15:
+        x: -6.0
+        y: 5.6
+      16:
+        x: -2.48
+        y: -14.95
+    agents:
+      - agent1
+      - agent2
+    agent1:
+      id: 1
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      init_pose:
+        x: -6.487
+        y: -9.952
+        z: 0.000
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      behavior:
+        configuration: 0
+        vel: 1.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 2.0
+        social_force_factor: 2.0
+        other_force_factor: 20.0
+      goals:
+        - 1
+        - 2
+        - 3
+    agent2:
+      id: 2
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      init_pose:
+        x: -5.809
+        y: -10.012
+        z: 0.000
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      behavior:
+        configuration: 0
+        vel: 1.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 2.0
+        social_force_factor: 2.0
+        other_force_factor: 20.0
+      goals:
+        - 1
+        - 2
+        - 3

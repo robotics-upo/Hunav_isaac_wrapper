@@ -19,9 +19,9 @@ class WorldBuilder:
 
     def load_map(self, map_name: str):
         """
-        Looks for `map_name.usd` inside the 'scenarios' folder under base_path and opens it.
+        Looks for `map_name.usd` inside the 'worlds' folder under base_path and opens it.
         """
-        map_path = os.path.join(self.base_path, "scenarios", f"{map_name}.usd")
+        map_path = os.path.join(self.base_path, "worlds", f"{map_name}.usd")
         if os.path.exists(map_path):
             self.usd_context.open_stage(map_path)
             print(f"Map '{map_name}' loaded from: {map_path}")

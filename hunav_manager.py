@@ -45,14 +45,13 @@ class HuNavManager:
     and handling ROS 2 communications.
     """
 
-    def __init__(
-        self, node, world, config_file_path, robot_prim_path, robot
-    ):
+    def __init__(self, node, world, config_file_path, robot_prim_path, robot):
         self.node = node
         self.stage = world.stage
         self.robot_prim_path = robot_prim_path
         self.robot_obj = robot
         self.world = world
+        self.config_file_path = config_file_path
 
         self.assets_root = get_assets_root_path()
         self._usd_context = omni.usd.get_context()
@@ -76,7 +75,7 @@ class HuNavManager:
             "female_adult_police_03_new/female_adult_police_03_new.usd",
             "male_adult_police_04/male_adult_police_04.usd",
             "original_female_adult_business_02/female_adult_business_02.usd",
-            "original_female_adult_medical_01/female_adult_medical_01.usd",            
+            "original_female_adult_medical_01/female_adult_medical_01.usd",
         ]
 
         self.target_model_paths = [
@@ -100,13 +99,15 @@ class HuNavManager:
             self.config = None
 
         # Define the default character source asset (for animation retargeting)
-        self.default_biped_usd = os.path.join(self.assets_root, "Isaac/People/Characters/Biped_Setup.usd")
+        self.default_biped_usd = os.path.join(
+            self.assets_root, "Isaac/People/Characters/Biped_Setup.usd"
+        )
 
     def _load_yaml(self, relative_path):
         full_path = os.path.join(os.path.dirname(__file__), relative_path)
         with open(full_path, "r") as file:
             return yaml.safe_load(file)
-        
+
     def normalize_angle(self, a: float) -> float:
         value = a
         while value <= -math.pi:
@@ -117,14 +118,35 @@ class HuNavManager:
 
     def initialize_hunav_nodes(self):
         process_1 = subprocess.Popen(
-            ["ros2", "run", "hunav_evaluator", "hunav_evaluator_node"],
+            [
+                "ros2",
+                "run",
+                "hunav_agent_manager",
+                "hunav_loader",
+                "--ros-args",
+                "--params-file",
+                self.config_file_path,
+            ],
             preexec_fn=os.setsid,
         )
         process_2 = subprocess.Popen(
-            ["ros2", "run", "hunav_agent_manager", "hunav_agent_manager"],
+            [
+                "ros2",
+                "run",
+                "hunav_agent_manager",
+                "hunav_agent_manager",
+                "--ros-args",
+                "--params-file",
+                self.config_file_path,
+            ],
             preexec_fn=os.setsid,
         )
-        self._hunav_processes = [process_1, process_2]
+        process_3 = subprocess.Popen(
+            ["ros2", "run", "hunav_evaluator", "hunav_evaluator_node"],
+            preexec_fn=os.setsid,
+        )
+
+        self._hunav_processes = [process_1, process_2, process_3]
 
     def close_hunav_nodes(self):
         for process in self._hunav_processes:
@@ -211,19 +233,49 @@ class HuNavManager:
                 random.shuffle(asset_cycle)
             asset_path = asset_cycle.pop()
 
-            init_pose = agent_cfg["init_pose"]
-            global_pos = Gf.Vec3d(init_pose["x"], init_pose["y"], init_pose["z"])
-            global_rot = Gf.Quatf(1, 0, 0, 0) * rotXQ
+            # init_pose = agent_cfg["init_pose"]
+            # # translation
+            # global_pos = Gf.Vec3d(init_pose["x"], init_pose["y"], init_pose["z"])
+            # global_rot = Gf.Quatf(1, 0, 0, 0) * rotXQ
 
-            # Create the outer container prim (global transform)
+            # # Create the outer container prim (global transform)
+            # container_path = f"/World/Characters/{agent_name}"
+            # container = self.stage.DefinePrim(container_path, "Xform")
+
+            # container_xform = UsdGeom.Xformable(container)
+            # translate_op = container_xform.AddTranslateOp()
+            # orient_op = container_xform.AddOrientOp()
+            # translate_op.Set(global_pos)
+            # orient_op.Set(global_rot)
+            
+            init_pose = agent_cfg["init_pose"]
+            # translation
+            global_pos = Gf.Vec3d(init_pose["x"], init_pose["y"], init_pose["z"])
+
+            h_rad = init_pose.get("h", 0.0)
+            h_deg = h_rad * 180.0 / math.pi
+
+            # 1) X-tilt rotation (90°)
+            rotX = Gf.Rotation(Gf.Vec3d(1, 0, 0), 90.0)
+            qdX = rotX.GetQuat()  # this is a Gf.Quatd
+            # convert to single‐precision quaternion:
+            rotXQ = Gf.Quatf(qdX.GetReal(), Gf.Vec3f(qdX.GetImaginary()))
+
+            # 2) Z-heading rotation
+            rotZ = Gf.Rotation(Gf.Vec3d(0, 0, 1), h_deg)
+            qdZ = rotZ.GetQuat()
+            rotZQ = Gf.Quatf(qdZ.GetReal(), Gf.Vec3f(qdZ.GetImaginary()))
+
+            # 3) combine: yaw then tilt
+            global_rot = rotZQ * rotXQ
+
+            # now apply to your container:
             container_path = f"/World/Characters/{agent_name}"
             container = self.stage.DefinePrim(container_path, "Xform")
-
-            container_xform = UsdGeom.Xformable(container)
-            translate_op = container_xform.AddTranslateOp()
-            orient_op = container_xform.AddOrientOp()
-            translate_op.Set(global_pos)
-            orient_op.Set(global_rot)
+            xf = UsdGeom.Xformable(container)
+            xf.AddTranslateOp().Set(global_pos)
+            xf.AddOrientOp().Set(global_rot)
+            
             PhysxSchema.PhysxRigidBodyAPI.Apply(container)
             UsdPhysics.RigidBodyAPI.Apply(container)
 
@@ -274,7 +326,6 @@ class HuNavManager:
                 )
         else:
             print("[HuNavManager] no robot_prim_path provided")
-                
 
     def reset_agent_states(self):
         for agent, init_state in zip(self.agents, self.agent_initial_states):
@@ -447,7 +498,10 @@ class HuNavManager:
         agent = Agent()
         agent.id = int(agent_cfg["id"])
         agent.type = Agent.PERSON
-        agent.skin = agent_cfg["skin"]
+        if self.config["hunav_loader"]["ros__parameters"]["simulator"] == "Gazebo":
+            agent.skin = agent_cfg["skin"]
+        else:
+            agent.skin = 0  
         agent.name = f"Agent{index + 1}"
         agent.group_id = int(agent_cfg["group_id"])
         agent.radius = float(agent_cfg["radius"])
@@ -475,8 +529,8 @@ class HuNavManager:
         # Velocities
         lin = agent_prim.GetAttribute("physics:velocity").Get()
         ang = agent_prim.GetAttribute("physics:angularVelocity").Get()
-        agent.linear_vel = np.sqrt(lin[0] ** 2 + lin[1] ** 2 + lin[2] ** 2)
-        agent.angular_vel = np.sqrt(ang[0] ** 2 + ang[1] ** 2 + ang[2] ** 2)
+        agent.linear_vel = float(np.linalg.norm(lin))
+        agent.angular_vel = float(np.linalg.norm(ang))
         agent.velocity.linear.x = float(lin[0])
         agent.velocity.linear.y = float(lin[1])
         agent.velocity.linear.z = float(lin[2])
@@ -487,32 +541,39 @@ class HuNavManager:
         # Goals
         agent.cyclic_goals = agent_cfg["cyclic_goals"]
         agent.goal_radius = float(agent_cfg["goal_radius"])
-        goals = []
-        for goal in agent_cfg["goals"]:
-            goal_config = agent_cfg[goal]
-            goal_position = Pose(
-                position=Point(x=goal_config["x"], y=goal_config["y"], z=0.0),
-                orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0),
-            )
-            goals.append(goal_position)
-        agent.goals = goals
+        # goals = []
+        # for goal in agent_cfg["goals"]:
+        #     goal_config = agent_cfg[goal]
+        #     goal_position = Pose(
+        #         position=Point(x=goal_config["x"], y=goal_config["y"], z=0.0),
+        #         orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0),
+        #     )
+        #     goals.append(goal_position)
+        # agent.goals = goals
 
         # Behavior
         beh = agent_cfg["behavior"]
         agent.behavior = AgentBehavior(
-            type=int(beh["type"]),
+            # type=int(beh["type"]),
             state=1,
             configuration=int(beh["configuration"]),
-            duration=float(beh["duration"]),
-            once=beh["once"],
-            vel=float(beh["vel"]),
-            dist=float(beh["dist"]),
+            # duration=float(beh["duration"]),
+            # once=beh["once"],
+            # vel=float(beh["vel"]),
+            # dist=float(beh["dist"]),
             social_force_factor=float(beh["social_force_factor"]),
             goal_force_factor=float(beh["goal_force_factor"]),
             obstacle_force_factor=float(beh["obstacle_force_factor"]),
             other_force_factor=float(beh["other_force_factor"]),
         )
-
+        
+        # if agent.behavior.configuration == 0: # Tweak SFM parameters for compatibility
+        #     {
+        #         agent.behavior.social_force_factor: 0.5,
+        #         agent.behavior.goal_force_factor: 0.5,
+        #         agent.behavior.obstacle_force_factor: 0.5,
+        #         agent.behavior.other_force_factor: 0.5,
+        #     }
         # Obstacle detection
         max_distance = 4.0
         agent.closest_obs = []
