@@ -90,6 +90,10 @@ class HuNavManager:
         self.retarget_flag = False
         self.bound_animations = {}
         self.flag_anim = {}
+        
+        # Orientation smoothing
+        self.agent_previous_orientations = {}  # Store previous orientations for smoothing
+        self.orientation_smoothing_factor = 0.15  # Lower = smoother but more lag (0.05-0.3 range)
 
         self.robot_prim = None
 
@@ -107,6 +111,53 @@ class HuNavManager:
         full_path = os.path.join(os.path.dirname(__file__), relative_path)
         with open(full_path, "r") as file:
             return yaml.safe_load(file)
+
+    def slerp_quaternions(self, q1: Gf.Quatf, q2: Gf.Quatf, t: float) -> Gf.Quatf:
+        """
+        Spherical linear interpolation between two quaternions for smooth rotation.
+        
+        Args:
+            q1: Starting quaternion
+            q2: Target quaternion  
+            t: Interpolation factor (0.0 = q1, 1.0 = q2)
+            
+        Returns:
+            Interpolated quaternion
+        """
+        # Ensure we take the shortest path by checking dot product
+        dot = q1.GetReal() * q2.GetReal() + sum(a * b for a, b in zip(q1.GetImaginary(), q2.GetImaginary()))
+        
+        # If dot product is negative, negate one quaternion to take shorter path
+        if dot < 0.0:
+            q2 = Gf.Quatf(-q2.GetReal(), -q2.GetImaginary()[0], -q2.GetImaginary()[1], -q2.GetImaginary()[2])
+            dot = -dot
+        
+        # If quaternions are very close, use linear interpolation to avoid division by zero
+        if dot > 0.9995:
+            result_real = q1.GetReal() + t * (q2.GetReal() - q1.GetReal())
+            result_imag = [
+                q1.GetImaginary()[i] + t * (q2.GetImaginary()[i] - q1.GetImaginary()[i])
+                for i in range(3)
+            ]
+            result = Gf.Quatf(result_real, result_imag[0], result_imag[1], result_imag[2])
+            return result.GetNormalized()
+        
+        # Calculate spherical interpolation
+        theta_0 = math.acos(abs(dot))
+        sin_theta_0 = math.sin(theta_0)
+        theta = theta_0 * t
+        sin_theta = math.sin(theta)
+        
+        s0 = math.cos(theta) - dot * sin_theta / sin_theta_0
+        s1 = sin_theta / sin_theta_0
+        
+        result_real = s0 * q1.GetReal() + s1 * q2.GetReal()
+        result_imag = [
+            s0 * q1.GetImaginary()[i] + s1 * q2.GetImaginary()[i]
+            for i in range(3)
+        ]
+        
+        return Gf.Quatf(result_real, result_imag[0], result_imag[1], result_imag[2]).GetNormalized()
 
     def normalize_angle(self, a: float) -> float:
         value = a
@@ -232,21 +283,6 @@ class HuNavManager:
                 asset_cycle = self.target_model_paths.copy()
                 random.shuffle(asset_cycle)
             asset_path = asset_cycle.pop()
-
-            # init_pose = agent_cfg["init_pose"]
-            # # translation
-            # global_pos = Gf.Vec3d(init_pose["x"], init_pose["y"], init_pose["z"])
-            # global_rot = Gf.Quatf(1, 0, 0, 0) * rotXQ
-
-            # # Create the outer container prim (global transform)
-            # container_path = f"/World/Characters/{agent_name}"
-            # container = self.stage.DefinePrim(container_path, "Xform")
-
-            # container_xform = UsdGeom.Xformable(container)
-            # translate_op = container_xform.AddTranslateOp()
-            # orient_op = container_xform.AddOrientOp()
-            # translate_op.Set(global_pos)
-            # orient_op.Set(global_rot)
             
             init_pose = agent_cfg["init_pose"]
             # translation
@@ -255,21 +291,21 @@ class HuNavManager:
             h_rad = init_pose.get("h", 0.0)
             h_deg = h_rad * 180.0 / math.pi
 
-            # 1) X-tilt rotation (90°)
+            # X-tilt rotation (90°)
             rotX = Gf.Rotation(Gf.Vec3d(1, 0, 0), 90.0)
             qdX = rotX.GetQuat()  # this is a Gf.Quatd
             # convert to single‐precision quaternion:
             rotXQ = Gf.Quatf(qdX.GetReal(), Gf.Vec3f(qdX.GetImaginary()))
 
-            # 2) Z-heading rotation
+            # Z-heading rotation
             rotZ = Gf.Rotation(Gf.Vec3d(0, 0, 1), h_deg)
             qdZ = rotZ.GetQuat()
             rotZQ = Gf.Quatf(qdZ.GetReal(), Gf.Vec3f(qdZ.GetImaginary()))
 
-            # 3) combine: yaw then tilt
+            # combine: yaw then tilt
             global_rot = rotZQ * rotXQ
 
-            # now apply to your container:
+            # now apply to container:
             container_path = f"/World/Characters/{agent_name}"
             container = self.stage.DefinePrim(container_path, "Xform")
             xf = UsdGeom.Xformable(container)
@@ -331,6 +367,8 @@ class HuNavManager:
         for agent, init_state in zip(self.agents, self.agent_initial_states):
             agent.GetAttribute("xformOp:translate").Set(init_state["position"])
             agent.GetAttribute("xformOp:orient").Set(init_state["orientation"])
+        
+        self.agent_previous_orientations.clear()
         print("[HuNavManager] agent states reset.")
 
     def clear_simulation(self):
@@ -343,6 +381,7 @@ class HuNavManager:
         self.robot = None
         self.agent_initial_states.clear()
         self.animationDict.clear()
+        self.agent_previous_orientations.clear()  # Clean up orientation tracking
 
     # Obstacle detection functions
     def generate_lasers(self, num_lasers: int) -> List[Gf.Vec3f]:
@@ -541,43 +580,70 @@ class HuNavManager:
         # Goals
         agent.cyclic_goals = agent_cfg["cyclic_goals"]
         agent.goal_radius = float(agent_cfg["goal_radius"])
-        # goals = []
-        # for goal in agent_cfg["goals"]:
-        #     goal_config = agent_cfg[goal]
-        #     goal_position = Pose(
-        #         position=Point(x=goal_config["x"], y=goal_config["y"], z=0.0),
-        #         orientation=Quaternion(x=0.0, y=0.0, z=0.0, w=1.0),
-        #     )
-        #     goals.append(goal_position)
-        # agent.goals = goals
-
+        
         # Behavior
         beh = agent_cfg["behavior"]
+        configuration = int(beh["configuration"])
+        
+        # SFM parameter configuration constants
+        DEFAULT_SFM_PARAMS = {
+            "goal_force_factor": 10.0,
+            "obstacle_force_factor": 2.0,
+            "social_force_factor": 5.0
+        }
+        
+        SFM_CONSTRAINTS = {
+            "goal_force_factor": (5.0, 10.0),
+            "obstacle_force_factor": (0.5, 5.0),
+            "social_force_factor": (5.0, 20.0)
+        }
+        
+        def clamp_value(value: float, min_val: float, max_val: float) -> float:
+            """Constrain value within specified range."""
+            return max(min_val, min(value, max_val))
+        
+        # Set SFM parameters based on configuration type
+        if configuration == 0:  # Default Isaac Sim configuration
+            sfm_params = DEFAULT_SFM_PARAMS.copy()
+            sfm_params["other_force_factor"] = float(beh["other_force_factor"])
+        elif configuration == 1:  # Custom unconstrained configuration
+            sfm_params = {
+                "social_force_factor": float(beh["social_force_factor"]),
+                "goal_force_factor": float(beh["goal_force_factor"]),
+                "obstacle_force_factor": float(beh["obstacle_force_factor"]),
+                "other_force_factor": float(beh["other_force_factor"])
+            }
+        else:  # Other configurations with constraints
+            sfm_params = {
+                "social_force_factor": float(beh["social_force_factor"]),
+                "goal_force_factor": float(beh["goal_force_factor"]),
+                "obstacle_force_factor": float(beh["obstacle_force_factor"]),
+                "other_force_factor": float(beh["other_force_factor"])
+            }
+            
+            # Apply constraints for non-custom configurations
+            for param, (min_val, max_val) in SFM_CONSTRAINTS.items():
+                if param in sfm_params:
+                    sfm_params[param] = clamp_value(sfm_params[param], min_val, max_val)
+        
         agent.behavior = AgentBehavior(
             # type=int(beh["type"]),
             state=1,
-            configuration=int(beh["configuration"]),
+            configuration=configuration,
             # duration=float(beh["duration"]),
             # once=beh["once"],
             # vel=float(beh["vel"]),
             # dist=float(beh["dist"]),
-            social_force_factor=float(beh["social_force_factor"]),
-            goal_force_factor=float(beh["goal_force_factor"]),
-            obstacle_force_factor=float(beh["obstacle_force_factor"]),
-            other_force_factor=float(beh["other_force_factor"]),
+            social_force_factor=sfm_params["social_force_factor"],
+            goal_force_factor=sfm_params["goal_force_factor"],
+            obstacle_force_factor=sfm_params["obstacle_force_factor"],
+            other_force_factor=sfm_params["other_force_factor"],
         )
         
-        # if agent.behavior.configuration == 0: # Tweak SFM parameters for compatibility
-        #     {
-        #         agent.behavior.social_force_factor: 0.5,
-        #         agent.behavior.goal_force_factor: 0.5,
-        #         agent.behavior.obstacle_force_factor: 0.5,
-        #         agent.behavior.other_force_factor: 0.5,
-        #     }
         # Obstacle detection
         max_distance = 4.0
         agent.closest_obs = []
-        sensor_offsets = [0.1, 0.5, 1.0]
+        sensor_offsets = [0.05, 0.1, 0.25, 0.5, 1.0]
         hits = self.get_closest_obstacles(pos, max_distance, sensor_offsets)
         for hit in hits:
             if hit[1] is not None:
@@ -587,7 +653,7 @@ class HuNavManager:
                     z=float(hit[1][2]),
                 )
             else:
-                pt = Point(x=0.0, y=0.0, z=0.0)
+                pt = Point(x=10000.0, y=10000.0, z=10000.0)
             agent.closest_obs.append(pt)
         return agent
 
@@ -639,20 +705,54 @@ class HuNavManager:
             )
             agent_prim.GetAttribute("xformOp:translate").Set(new_pos)
 
-            # Set orientation
+            # Set orientation with smoothing
             new_quat = Gf.Quatf(
                 upd.position.orientation.w,
                 upd.position.orientation.x,
                 upd.position.orientation.y,
                 upd.position.orientation.z,
             )
-            # Orientation corrections
+            
+            # Pre-calculate orientation corrections
             rotX = Gf.Rotation(Gf.Vec3d(0, 0, 1), 90).GetQuat()
             rotXQ = Gf.Quatf(rotX)
             rotZ = Gf.Rotation(Gf.Vec3d(1, 0, 0), 90).GetQuat()
             rotZQ = Gf.Quatf(rotZ)
-
-            agent_prim.GetAttribute("xformOp:orient").Set(new_quat * rotXQ * rotZQ)
+            
+            # Apply corrections to get the target final orientations
+            target_prim_quat = new_quat * rotXQ * rotZQ  # Final orientation for prim
+            rotZQ_anim = Gf.Quatf(Gf.Rotation(Gf.Vec3d(1, 0, 0), 0).GetQuat())
+            target_anim_quat = new_quat * rotXQ * rotZQ_anim  # Final orientation for animation
+            
+            # Get current orientations for smoothing
+            agent_path = agent_prim.GetPath()
+            
+            # Apply orientation smoothing to the corrected orientations
+            if agent_path in self.agent_previous_orientations:
+                # Get previous animation quaternion (stored separately)
+                prev_prim_quat, prev_anim_quat = self.agent_previous_orientations[agent_path]
+                
+                # Interpolate both prim and animation orientations for smooth turning
+                smoothed_prim_quat = self.slerp_quaternions(
+                    prev_prim_quat, 
+                    target_prim_quat, 
+                    self.orientation_smoothing_factor
+                )
+                smoothed_anim_quat = self.slerp_quaternions(
+                    prev_anim_quat,
+                    target_anim_quat,
+                    self.orientation_smoothing_factor
+                )
+            else:
+                # First frame - use target orientations directly
+                smoothed_prim_quat = target_prim_quat
+                smoothed_anim_quat = target_anim_quat
+            
+            # Store current orientations for next frame (both prim and animation)
+            self.agent_previous_orientations[agent_path] = (smoothed_prim_quat, smoothed_anim_quat)
+            
+            # Apply the smoothed orientations
+            agent_prim.GetAttribute("xformOp:orient").Set(smoothed_prim_quat)
 
             lin = Gf.Vec3d(
                 upd.velocity.linear.x,
@@ -660,14 +760,11 @@ class HuNavManager:
                 upd.velocity.linear.z,
             )
 
-            # Animation orientation correction
-            rotZQ_anim = Gf.Quatf(Gf.Rotation(Gf.Vec3d(1, 0, 0), 0).GetQuat())
-            global_orient = new_quat * rotXQ * rotZQ_anim
-
+            # Animation orientation correction (use smoothed animation orientation)
             if char:
                 pos_carb = carb.Float3(new_pos[0], new_pos[1], new_pos[2])
-                real = global_orient.GetReal()
-                imag = global_orient.GetImaginary()
+                real = smoothed_anim_quat.GetReal()
+                imag = smoothed_anim_quat.GetImaginary()
                 rot_carb = carb.Float4(imag[0], imag[1], imag[2], real)
                 char.set_world_transform(pos_carb, rot_carb)
 
