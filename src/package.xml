@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypeName="packageFormat"?>
+<package format="3">
+  <name>hunav_isaac_wrapper</name>
+  <version>1.0.0</version>
+  <description>Isaac Sim wrapper for HuNavSim human navigation simulation</description>
+  
+  <maintainer email="mescjim@upo.es">Miguel Escudero Jiménez</maintainer>
+  <license>MIT</license>
+  
+  <url type="repository">https://github.com/robotics-upo/hunav_isaac_wrapper</url>
+  
+  <author email="mescjim@upo.es">Miguel Escudero Jiménez</author>
+  
+  <!-- Dependencies -->
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>hunav_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  
+  <!-- Python dependencies -->
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
+  
+  <!-- Build tool dependencies -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+  
+  <!-- Test dependencies -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -14,8 +14,6 @@ This repository is actively developed and subject to improvements.
 - **Isaac Sim 4.5**  
 - **Ubuntu 22.04 LTS**  
 
----
-
 ## 🔹 **Overview**  
 
 **HuNav Isaac Wrapper** is a modular simulation framework that integrates the [HuNavSim](https://github.com/robotics-upo/hunav_sim) human navigation simulator into **NVIDIA Isaac Sim**, enabling realistic multi-agent behavior with physics-based animation and **ROS 2** interoperability.
@@ -26,35 +24,39 @@ It supports both **ROS 2 teleoperation** and **autonomous navigation (Nav2)**, w
 
 ---
 
-## 🔹 Features  
+## 🔹 **Features**  
+
+- **ROS2 Workspace Structure:**
+  - Complete ROS2 workspace that can be cloned and built directly with `colcon build`
 
 - **Modular Architecture:**  
-  - `main.py`: Interactive launcher providing a command-line interface for configuration selection (agent files, worlds, robots) and simulation startup.
-  - `world_builder.py`: Loads USD world files.
-  - `hunav_manager.py`: Handles agent creation, communication with HuNavSim services, and manages physics, animations, and obstacle detection.
-  - `teleop_hunav_sim.py`: Manages HuNavSim initialization, updates agent states, and handles the ROS 2 /cmd_vel interface for robot control.
-  - `animation_utils.py`: Utilities for AnimationGraph setup and retargeting.
+  - `main.py`: Interactive launcher providing a command-line interface for configuration selection (agent files, worlds, robots) and simulation startup
+  - `world_builder.py`: Loads USD world files
+  - `hunav_manager.py`: Handles agent creation, communication with HuNavSim services, and manages physics, animations, and obstacle detection
+  - `teleop_hunav_sim.py`: Manages HuNavSim initialization, updates agent states, and handles the ROS 2 /cmd_vel interface for robot control
+  - `animation_utils.py`: Utilities for AnimationGraph setup and retargeting
+
+- **Enhanced Agent Configuration:**  
+  - YAML files (in `scenarios/`) define agent spawn positions, navigation goals, SFM parameters, and behavior profiles
+  - Backward compatible with existing configuration files
 
 - **Animation System:**  
-  - **AnimationGraph-based** blending for smooth walk/idle transitions.  
-    - Driven by agent velocity, allowing dynamic switching between walk and idle states.
-  - Supports animation **retargeting**, applying a single set of animations to different characters via **USD SkelAnimation** and the **Omni Anim Retargeting extension**.
-
-- **Flexible Agent Configuration:**  
-  - YAML files (in `scenarios/`) define agent spawn positions, navigation goals, SFM parameters, and behavior profiles for each world.
+  - **AnimationGraph-based** blending for smooth walk/idle transitions  
+  - Driven by agent velocity, allowing dynamic switching between walk and idle states
+  - Supports animation **retargeting**, applying a single set of animations to different characters via **USD SkelAnimation** and the **Omni Anim Retargeting extension**
 
 - **Multiple Robot Models:**  
-  - Includes `jetbot`, `create3`, `carter`, and `carter_ROS` models.
+  - Includes `jetbot`, `create3`, `carter`, and `carter_ROS` models
 
 - **ROS 2 Navigation (Nav2) Support:**  
-  - Enables autonomous navigation for the **Carter** robot using the **ROS 2 Nav2** stack.
+  - Enables autonomous navigation for the **Carter** robot using the **ROS 2 Nav2** stack
 
 - **Social Simulation & Teleoperation:**  
-  - Real-time robot control via `/cmd_vel`.  
-  - Socially-aware agent movement via **HuNavSim** integration.
+  - Real-time robot control via `/cmd_vel`  
+  - Socially-aware agent movement via **HuNavSim** integration
 
 - **Obstacle Detection:**  
-  - Uses **PhysX raycasts** (in `hunav_manager.py`) for detecting obstacles and informing **HuNavSim** navigation logic.
+  - Uses **PhysX raycasts** (in `hunav_manager.py`) for detecting obstacles and informing **HuNavSim** navigation logic
 
 ---
 
@@ -70,55 +72,99 @@ It supports both **ROS 2 teleoperation** and **autonomous navigation (Nav2)**, w
 
 ---
 
-## 🔹 **Installation and Usage**
+## 🔹 **Setup Guide**
 
-### 1. Clone the Repository
+### 1. Repository Setup
+
+#### **Option 1: Direct Clone (Recommended)**
+
+This project is structured as a complete ROS2 workspace:
 
 ```bash
-git clone https://github.com/robotics-upo/Hunav_isaac_wrapper.git
+# Clone the repository
+git clone https://github.com/robotics-upo/Hunav_isaac_wrapper
 cd Hunav_isaac_wrapper
+
+# Install ROS2 dependencies
+sudo apt install ros-humble-geometry-msgs ros-humble-nav-msgs ros-humble-sensor-msgs ros-humble-tf2-ros
+
+# Install Python dependencies
+pip install pyyaml numpy matplotlib
+
+# Build the workspace 
+colcon build
+
+# Source the workspace
+source install/setup.bash
 ```
 
-### 2. Configure Your Environment
+#### **Option 2: Add to Existing ROS2 Workspace**
 
-#### Enable Required Extensions
+If you want to integrate this into an existing ROS2 workspace:
 
-To ensure all required dependencies are active:
+```bash
+cd ~/your_ros2_ws/src
+git clone https://github.com/robotics-upo/Hunav_isaac_wrapper.git
 
-- Replace the existing `isaacsim.exp.base.kit` file inside your Isaac Sim installation (under `~/isaacsim/apps/`) with the one provided in this repository:
+# Move the package contents to your workspace
+cp -r hunav_isaac_wrapper/src/* .
+rm -rf hunav_isaac_wrapper
 
-  ```bash
-  cp ~/Hunav_isaac_wrapper/isaacsim.exp.base.kit ~/isaacsim/apps/
-  ```
+# Build your workspace
+cd ~/your_ros2_ws
+colcon build --packages-select hunav_isaac_wrapper
+source install/setup.bash
+```
 
-  ⚠️ **Important**: This file ensures that essential extensions (e.g., animation retargeting, ROS 2 bridge) are preloaded at startup. **Without this step, the wrapper may not function correctly**.
-  
-#### Load the Correct Python Environment
+#### **Additional Dependencies**
 
-- **The provided startup bash script (`startup_hunav_isaac.sh`) should automatically load the correct Python environment for Isaac Sim.**
+You'll also need to install HuNavSim in case you haven't already:
 
-### 3. ROS 2 Setup
+```bash
+# In your ROS2 workspace src directory
+git clone https://github.com/robotics-upo/hunav_sim.git
+cd .. && colcon build 
+```
 
-Ensure that ROS 2 is installed and sourced before launching the simulation.
+### 2. Isaac Sim Installation
 
-**Note**: If needed, follow this guide ([ROS2 Installation](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html)) to make sure the ROS 2 workspace environment is setup correctly.
+Make sure you have **NVIDIA Isaac Sim** installed. Follow the [Isaac Sim Installation Guide](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html).
 
-### 4. Configure Your Scene, Agents, and Robot
+### 3. Configure Isaac Sim Extensions
 
-The simulation setup is configured through the interactive launcher in `main.py`, which provides a menu-driven interface to select the world, agent configuration, and robot model.
+To ensure all required dependencies are active, replace the existing `isaacsim.exp.base.kit` file from your Isaac Sim installation with the one provided in this repository:
+
+```bash
+# After cloning this repository
+cp src/isaacsim.exp.base.kit ~/isaacsim/apps/
+```
+
+⚠️ **Important**: This file ensures that essential extensions (e.g., animation retargeting, ROS 2 bridge) are preloaded at startup.
+
+### 4. ROS 2 Setup
+
+Ensure ROS 2 Humble is installed and sourced:
+
+```bash
+source /opt/ros/humble/setup.bash
+```
+
+### 5. Configure Your Scene, Agents, and Robot
+
+The simulation setup is configured through the interactive launcher, which provides a menu-driven interface to select the world, agent configuration, and robot model.
 
 #### 🗺️ Scene Setup
 
-The repository includes multiple pre-configured USD files located in the `worlds/` folder, each reflecting a different type of environment:
+The repository includes multiple pre-configured USD files in `src/worlds/`:
 
-- `warehouse.usd`: Industrial layout with shelves and various obstacles.
-- `hospital.usd`: Medical environment with corridors and rooms.
-- `office.usd`: Workspace with desks and conference areas.
-- `empty_world.usd`: A minimal open environment for testing.
+- `warehouse.usd`: Industrial layout with shelves and various obstacles
+- `hospital.usd`: Medical environment with corridors and rooms
+- `office.usd`: Workspace with desks and conference areas
+- `empty_world.usd`: A minimal open environment for testing
 
 #### 🧍 Agents Configuration
 
-Each world is paired with a YAML file in the `scenarios/` folder that defines the HuNavSim agents to be used within it.
+Each world is paired with a YAML file in `src/scenarios/` that defines the HuNavSim agents:
 
 - **Available configuration files:**
   - `agents_warehouse.yaml` → for `warehouse.usd`
@@ -134,89 +180,103 @@ Each world is paired with a YAML file in the `scenarios/` folder that defines th
 
 #### 🤖 Robot Configuration
 
-- The interactive launcher will prompt you to select your desired robot from the available options:
-  - `jetbot`, `create3`, `carter`, or `carter_ROS`
+The interactive launcher will prompt you to select your desired robot:
+- `jetbot`, `create3`, `carter`, or `carter_ROS`
 
-   **Note:** For `carter_ROS`, make sure to unzip the `nova_carter_ros2_sensors` package located in `config/robots/`.
-- **Carter** robot also supports **ROS 2 Navigation (Nav2)** for autonomous navigation (see *Teleoperation and Simulation* section for launch instructions).
+**Note:** For `carter_ROS`, make sure to unzip the `nova_carter_ros2_sensors` package located in `src/config/robots/`.
 
-### 5. Launch the Simulation
+**Carter** robot also supports **ROS 2 Navigation (Nav2)** for autonomous navigation.
 
-Run the startup script:
+### 6. Launch the Simulation
+
+Use the provided launcher script:
 
 ```bash
-. startup_hunav_isaac.sh
+./launch_hunav_isaac.sh
 ```
 
-This script will:
+This will:
 
-- Launch Isaac Sim.
-- Start the interactive launcher that will guide you through:
-  - Selecting an agent configuration (built-in presets or custom YAML files)
-  - Choosing the appropriate world (automatically inferred from the configuration file)
-  - Selecting the robot model
-- Load the specified world and spawn agents based on your selections.
-- Apply physics, animations, and initialize integration with ROS 2 and HuNavSim.
+- Start the interactive launcher with menu-driven configuration
+- Guide you through selecting agent configuration, world, and robot model
+- Load the specified world and spawn agents based on your selections
+- Initialize physics, animations, and ROS 2 integration
 
-### 6. Teleoperation and Simulation
+### 7. Teleoperation and Navigation
 
 #### Teleoperation
 
-- Use ROS 2 to publish Twist messages to `/cmd_vel` for direct robot control during the simulation.
+Use ROS 2 to publish Twist messages to `/cmd_vel` for direct robot control:
 
-#### Simulation
-
-- Agent states (position, behavior, animation) are updated on every physics step.
-- The robot can be teleoperated in real-time, and agents navigate according to their goals and behaviors.
+```bash
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist '{linear: {x: 0.5}, angular: {z: 0.1}}'
+```
 
 #### ROS 2 Navigation (Nav2) – Carter Robot Only
 
-If you're using the `carter_ROS` robot model and want to enable autonomous navigation:
+For autonomous navigation with the `carter_ROS` robot:
 
-1. Make sure the simulation is running (`startup_hunav_isaac.sh` launched successfully).
-2. In a separate terminal (with your ROS 2 environment sourced), launch the navigation stack:
+1. Ensure the simulation is running
+2. In a separate terminal, launch the navigation stack:
 
    ```bash
-   cd Hunav_isaac_wrapper
-   ros2 launch carter_navigation carter_navigation.launch.py params_file:="config/navigation_params/carter_navigation_params.yaml" map:="maps/warehouse.yaml"
+   ros2 launch carter_navigation carter_navigation.launch.py \
+     params_file:="src/config/navigation_params/carter_navigation_params.yaml" \
+     map:="src/maps/warehouse.yaml"
    ```
 
----
-
 ## 🔹 **Troubleshooting**
+  
+### Automated Setup Issues
 
-**(*) In the case of using agent models other than the provided ones**
+If you encounter issues with the manual setup steps, you can use the automated setup script:
+
+  ```bash
+  # Make the script executable
+  chmod +x setup_workspace.sh
+
+  # Run the setup script
+  ./setup_workspace.sh
+  ```
+
+This script will:
+
+- Verify ROS2 is properly sourced
+- Check for required dependencies (`hunav_msgs`, `geometry_msgs`, `std_msgs`, `nav_msgs`, `sensor_msgs`, `tf2_ros`)
+- Automatically build the package if in a colcon workspace
+- Provide guidance for workspace creation if needed
+- Display usage examples for different launch methods
 
 ### ROS 2 Connectivity
 
-- Make sure that your existing ROS 2 Humble installation is sourced
+Make sure that your ROS 2 Humble installation is sourced:
 
-    ```bash
-  source /opt/ros/humble/setup.bash 
+  ```bash
+  source /opt/ros/humble/setup.bash
   ```
 
-- If ``carter_navigation`` package is not recognized, follow these steps:
+If `carter_navigation` package is not recognized, follow these steps:
 
-  Clone the [IsaacSim-ros_workspaces](https://github.com/isaac-sim/IsaacSim-ros_workspaces.git) repository
+1. Clone the [IsaacSim-ros_workspaces](https://github.com/isaac-sim/IsaacSim-ros_workspaces.git) repository:
 
-    ```bash
-  git clone https://github.com/isaac-sim/IsaacSim-ros_workspaces.git
-  ```
+   ```bash
+   git clone https://github.com/isaac-sim/IsaacSim-ros_workspaces.git
+   ```
 
-  Build the ROS 2 humble workspace
+2. Build the ROS 2 humble workspace:
 
-    ```bash
-  cd IsaacSim-ros_workspaces/humble_ws
-  colcon build
-  ```
+   ```bash
+   cd IsaacSim-ros_workspaces/humble_ws
+   colcon build
+   ```
 
-  Then make sure to source the workspace inside your `.bashrc`
+3. Source the workspace in your `.bashrc`:
 
-    ```bash
-  source ~/IsaacSim-ros_workspaces/humble_ws/install/setup.bash
-  ```
+   ```bash
+   source ~/IsaacSim-ros_workspaces/humble_ws/install/setup.bash
+   ```
 
-### Agent Orientation (*)
+### Agent Configuration Issues
 
 - If agents appear horizontal rather than vertical, adjust the rotation applied in the script (e.g., modify the quaternion calculation in `hunav_manager.initialize_agents()`'s `init_rot` parameter and/or `hunav_manager._update_agents()`).
 
@@ -241,3 +301,4 @@ This work is carried out as part of the **HunavSim 2.0** project, _“A Human Na
   &nbsp;&nbsp;&nbsp;
   <img src="https://www.eurobin-project.eu/images/2025/03/15/eurobin_logo-_payoff.png" alt="euROBIN Logo" width="160"/>
 </p>
+

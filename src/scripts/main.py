@@ -20,16 +20,39 @@ import signal
 import time
 import json
 from pathlib import Path
-import rclpy
-from teleop_hunav_sim import TeleopHuNavSim
 
-# Paths
-HOME_WRAPPER = os.path.expanduser("~/Hunav_isaac_wrapper")
-DOCKER_WRAPPER = "/workspace/hunav_isaac_ws/src/Hunav_isaac_wrapper"
-BASE_WRAPPER = DOCKER_WRAPPER if os.path.isdir(DOCKER_WRAPPER) else HOME_WRAPPER
-CONFIG_DIR = os.path.join(BASE_WRAPPER, "scenarios")
-WORLDS_DIR = os.path.join(BASE_WRAPPER, "worlds")
-LAST_CONFIG_FILE = os.path.join(BASE_WRAPPER, "config", "last_launch_config.json")
+# Add the hunav_isaac_wrapper package to the Python path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+package_dir = os.path.join(os.path.dirname(script_dir), "hunav_isaac_wrapper")
+if os.path.exists(package_dir):
+    sys.path.insert(0, os.path.dirname(script_dir))
+
+import rclpy
+
+TeleopHuNavSim = None  # Import Isaac Sim components only when needed to avoid startup issues
+
+# Paths - Updated for new ROS2 package structure
+script_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.dirname(script_dir)
+workspace_root = os.path.dirname(src_dir)
+
+# Try to detect if we're in development or installed mode
+if os.path.basename(src_dir) == "src":
+    # Development mode - running from src directory
+    BASE_WRAPPER = workspace_root
+    CONFIG_DIR = os.path.join(src_dir, "scenarios")
+    WORLDS_DIR = os.path.join(src_dir, "worlds") 
+    CONFIG_CONFIG_DIR = os.path.join(src_dir, "config")
+else:
+    # Fallback to old paths for backward compatibility
+    HOME_WRAPPER = os.path.expanduser("~/Hunav_isaac_wrapper")
+    DOCKER_WRAPPER = "/workspace/hunav_isaac_ws/src/Hunav_isaac_wrapper"
+    BASE_WRAPPER = DOCKER_WRAPPER if os.path.isdir(DOCKER_WRAPPER) else HOME_WRAPPER
+    CONFIG_DIR = os.path.join(BASE_WRAPPER, "scenarios")
+    WORLDS_DIR = os.path.join(BASE_WRAPPER, "worlds")
+    CONFIG_CONFIG_DIR = os.path.join(BASE_WRAPPER, "config")
+
+LAST_CONFIG_FILE = os.path.join(CONFIG_CONFIG_DIR, "last_launch_config.json")
 
 # built-in presets
 PRESETS = {"warehouse_agents", "hospital_agents", "office_agents"}
@@ -774,10 +797,11 @@ def interactive_config_selection():
     
     if config_type == "Pre-built configurations":
         # Show only preset configurations
+        preset_list = sorted(list(PRESETS))
         config_choice = choose(
             "Select pre-built configuration:",
-            PRESETS,
-            default=PRESETS[0],
+            preset_list,
+            default=preset_list[0],
         )
         # User picked one of the built-in presets
         filename = config_choice + ".yaml"
@@ -883,6 +907,11 @@ def launch_simulation(world, config_path, robot, verbose=False):
         
         if verbose:
             print_info("Creating TeleopHuNavSim node...")
+        
+        # Import Isaac Sim components only when needed to avoid startup issues
+        global TeleopHuNavSim
+        if TeleopHuNavSim is None:
+            from hunav_isaac_wrapper.teleop_hunav_sim import TeleopHuNavSim
         
         # Create and run the TeleopHuNavSim node
         node = TeleopHuNavSim(

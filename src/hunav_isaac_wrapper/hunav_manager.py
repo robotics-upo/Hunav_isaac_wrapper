@@ -31,7 +31,7 @@ from pxr import Sdf, Gf, UsdGeom, UsdPhysics, PhysxSchema
 import carb
 
 # Import auxiliary animation functions
-from animation_utils import *
+from .animation_utils import *
 
 enable_extension("omni.anim.retarget.core")
 

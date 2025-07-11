@@ -33,8 +33,8 @@ import omni
 import omni.graph.core as og
  
 # Import the WorldBuilder and HuNavManager modules.
-from world_builder import WorldBuilder
-from hunav_manager import HuNavManager
+from .world_builder import WorldBuilder
+from .hunav_manager import HuNavManager
 
 class TeleopHuNavSim(Node):
     """
@@ -55,7 +55,7 @@ class TeleopHuNavSim(Node):
             print("Could not find Nucleus root.")
 
         # Load USD stage
-        self.builder = WorldBuilder(base_path=os.path.dirname(__file__))
+        self.builder = WorldBuilder(base_path=os.path.dirname(os.path.dirname(__file__)))
         if map_name:
             self.builder.load_map(map_name)
 
@@ -100,7 +100,7 @@ class TeleopHuNavSim(Node):
             "carter_ROS": {
                 "name": "Nova_Carter",
                 "usd_relative_path": os.path.join(
-                    os.path.dirname(__file__),
+                    os.path.dirname(os.path.dirname(__file__)),
                     "config/robots",
                     "nova_carter_ros2_sensors.usd",
                 ),
