@@ -81,6 +81,25 @@ class HuNavManager:
         self.target_model_paths = [
             f"{character_root_path}{model}" for model in character_models
         ]
+        
+        # Mapping from skin ID to character model index
+        # This allows agents to specify which character model to use via the 'skin' field
+        # in their configuration. Valid options:
+        #   0-10: Specific character models (see mapping below)
+        #   "random": Random character model selection
+        self.skin_to_model_mapping = {
+            1: 0,   # F_Business_02
+            2: 1,   # F_Medical_01
+            3: 2,   # M_Medical_01
+            4: 3,   # male_adult_construction_01_new
+            5: 4,   # male_adult_construction_05_new
+            6: 5,   # female_adult_police_01_new
+            7: 6,   # female_adult_police_02
+            8: 7,   # female_adult_police_03_new
+            9: 8,   # male_adult_police_04
+            10: 9,  # original_female_adult_business_02
+            11: 10, # original_female_adult_medical_01
+        }
 
         # Data holders
         self.agents = []
@@ -278,11 +297,29 @@ class HuNavManager:
         for agent_name in agent_configs:
             agent_cfg = self.config["hunav_loader"]["ros__parameters"][agent_name]
 
-            # Select a different agent model on every loop
-            if len(asset_cycle) == 0:
-                asset_cycle = self.target_model_paths.copy()
-                random.shuffle(asset_cycle)
-            asset_path = asset_cycle.pop()
+            # Use skin value to select specific character model
+            skin_value = agent_cfg["skin"]
+            asset_path = self.get_character_model_from_skin(skin_value)
+            
+            if asset_path is None:
+                # Invalid skin value, fall back to round-robin selection
+                self.node.get_logger().warn(
+                    f"Invalid skin value '{skin_value}' for agent {agent_name}, "
+                    f"falling back to random selection. Valid skin values are 0 (random) or 1-{len(self.target_model_paths)}"
+                )
+                if len(asset_cycle) == 0:
+                    asset_cycle = self.target_model_paths.copy()
+                    random.shuffle(asset_cycle)
+                asset_path = asset_cycle.pop()
+            else:
+                if skin_value == 0:
+                    self.node.get_logger().info(
+                        f"Agent {agent_name} using random skin: {asset_path.split('/')[-2]}"
+                    )
+                else:
+                    self.node.get_logger().info(
+                        f"Agent {agent_name} using skin {skin_value}: {asset_path.split('/')[-2]}"
+                    )
             
             init_pose = agent_cfg["init_pose"]
             # translation
@@ -787,3 +824,28 @@ class HuNavManager:
                 )
             else:
                 print(f"No AnimationGraph bound for {agent_prim.GetPath()}")
+
+    def get_character_model_from_skin(self, skin_value):
+        """
+        Get character model path based on skin value.
+        
+        Args:
+            skin_value (int): The skin ID from agent configuration
+                            - 0: Random character model selection
+                            - 1-11: Specific character models
+            
+        Returns:
+            str: Path to the character model, or None if skin_value is invalid
+        """
+        # Handle random skin option (skin value 0)
+        if skin_value == 0:
+            random_index = random.randint(0, len(self.target_model_paths) - 1)
+            return self.target_model_paths[random_index]
+        
+        # Handle specific skin values (1-11 mapped to model indices 0-10)
+        if isinstance(skin_value, (int, float)) and skin_value in self.skin_to_model_mapping:
+            model_index = self.skin_to_model_mapping[int(skin_value)]
+            if 0 <= model_index < len(self.target_model_paths):
+                return self.target_model_paths[model_index]
+        
+        return None
