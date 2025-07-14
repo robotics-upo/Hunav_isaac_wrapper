@@ -21,6 +21,8 @@ simulation_app = SimulationApp(CONFIG)
 
 import os
 import signal
+import subprocess
+from pathlib import Path
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from isaacsim.core.api import World
@@ -35,6 +37,85 @@ import omni.graph.core as og
 # Import the WorldBuilder and HuNavManager modules.
 from .world_builder import WorldBuilder
 from .hunav_manager import HuNavManager
+
+def find_package_share_directory():
+    """
+    Find the package share directory containing worlds, scenarios, config, etc.
+    Works both in development and installed package modes.
+    """
+    # Try to find via ROS2 package first (installed mode)
+    try:
+        result = subprocess.run(
+            ["ros2", "pkg", "prefix", "hunav_isaac_wrapper"],
+            capture_output=True, text=True, check=True
+        )
+        pkg_path = Path(result.stdout.strip())
+        share_dir = pkg_path / "share" / "hunav_isaac_wrapper"
+        if share_dir.exists() and (share_dir / "worlds").exists():
+            return str(share_dir)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    
+    # Development mode fallback
+    current_file = Path(__file__)
+    
+    # Check if we're in src/hunav_isaac_wrapper/ (development mode)
+    if current_file.parent.parent.name == "src":
+        src_dir = current_file.parent.parent
+        if (src_dir / "worlds").exists():
+            return str(src_dir)
+    
+    # Last fallback - check current working directory
+    cwd = Path.cwd()
+    if (cwd / "worlds").exists():
+        return str(cwd)
+    
+    # If all else fails, return the old path calculation
+    return os.path.dirname(os.path.dirname(__file__))
+
+
+def find_robot_config_path(filename):
+    """
+    Find robot configuration file in development or installed package.
+    
+    Args:
+        filename: Name of the robot config file (e.g., "nova_carter_ros2_sensors.usd")
+    
+    Returns:
+        str: Absolute path to the robot config file
+    """
+    # Try to find via ROS2 package share directory (installed mode)
+    try:
+        result = subprocess.run(
+            ["ros2", "pkg", "prefix", "hunav_isaac_wrapper"],
+            capture_output=True, text=True, check=True
+        )
+        pkg_path = Path(result.stdout.strip())
+        robot_config = pkg_path / "share" / "hunav_isaac_wrapper" / "config" / "robots" / filename
+        if robot_config.exists():
+            return str(robot_config)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    
+    # Try development mode (relative to this file)
+    current_file_dir = Path(__file__).parent
+    workspace_root = current_file_dir.parent.parent
+    robot_config = workspace_root / "config" / "robots" / filename
+    if robot_config.exists():
+        return str(robot_config)
+    
+    # Try alternative development paths
+    dev_paths = [
+        current_file_dir.parent / "config" / "robots" / filename,
+        Path.cwd() / "src" / "config" / "robots" / filename,
+        Path.cwd() / "config" / "robots" / filename,
+    ]
+    
+    for path in dev_paths:
+        if path.exists():
+            return str(path)
+    
+    raise FileNotFoundError(f"Robot config file not found: {filename}")
 
 class TeleopHuNavSim(Node):
     """
@@ -55,7 +136,7 @@ class TeleopHuNavSim(Node):
             print("Could not find Nucleus root.")
 
         # Load USD stage
-        self.builder = WorldBuilder(base_path=os.path.dirname(os.path.dirname(__file__)))
+        self.builder = WorldBuilder(base_path=find_package_share_directory())
         if map_name:
             self.builder.load_map(map_name)
 
@@ -99,11 +180,7 @@ class TeleopHuNavSim(Node):
             },
             "carter_ROS": {
                 "name": "Nova_Carter",
-                "usd_relative_path": os.path.join(
-                    os.path.dirname(os.path.dirname(__file__)),
-                    "config/robots",
-                    "nova_carter_ros2_sensors.usd",
-                ),
+                "usd_relative_path": find_robot_config_path("nova_carter_ros2_sensors.usd"),
                 "wheel_dof_names": ["joint_wheel_left", "joint_wheel_right"],
                 "wheel_radius": 0.14,
                 "wheel_base": 0.413,
@@ -114,7 +191,14 @@ class TeleopHuNavSim(Node):
             raise ValueError(f"Unsupported robot_name: {robot_name}")
 
         robot_config = robot_configs[robot_name]
-        robot_path = os.path.join(assets_root_path, robot_config["usd_relative_path"])
+        
+        # Handle absolute vs relative paths for robot USD files
+        if os.path.isabs(robot_config["usd_relative_path"]):
+            # Absolute path (for custom robots like carter_ROS)
+            robot_path = robot_config["usd_relative_path"]
+        else:
+            # Relative path (for built-in Isaac Sim robots)
+            robot_path = os.path.join(assets_root_path, robot_config["usd_relative_path"])
 
         # Add robot to world
         robot_prim_path = f"/World/{robot_config['name']}"

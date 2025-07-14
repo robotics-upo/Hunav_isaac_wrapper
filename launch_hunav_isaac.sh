@@ -82,19 +82,28 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "Examples:"
     echo "  $0                              # Show interactive menu"
     echo "  $0 warehouse_agents.yaml        # Launch warehouse scenario"
-    echo "  $0 --scenario myfile.yaml --batch  # Batch mode"
+    echo "  $0 --config myfile.yaml --batch  # Batch mode"
     echo ""
     exit 0
 elif [ $# -eq 0 ]; then
     # Interactive mode
     echo -e "${GREEN}Launching in interactive mode...${NC}"
     $ISAAC_PYTHON "$MAIN_SCRIPT"
-elif [ $# -eq 1 ]; then
-    # Scenario specified
+elif [ $# -eq 1 ] && [[ ! "$1" =~ ^-- ]]; then
+    # Single scenario specified (doesn't start with --)
     echo -e "${GREEN}Launching with scenario: $1${NC}"
-    $ISAAC_PYTHON "$MAIN_SCRIPT" --scenario "$1" --batch
+    $ISAAC_PYTHON "$MAIN_SCRIPT" --config "$1" --batch
 else
-    # Pass all arguments
-    echo -e "${GREEN}Launching with arguments: $@${NC}"
-    $ISAAC_PYTHON "$MAIN_SCRIPT" "$@"
+    # Multiple arguments or arguments that start with --
+    if [ $# -ge 2 ] && [[ ! "$1" =~ ^-- ]]; then
+        # First argument is likely a scenario file, convert it to --config format
+        SCENARIO="$1"
+        shift  # Remove first argument
+        echo -e "${GREEN}Launching with scenario: $SCENARIO and additional arguments: $@${NC}"
+        $ISAAC_PYTHON "$MAIN_SCRIPT" --config "$SCENARIO" "$@"
+    else
+        # All arguments start with -- or it's a single -- argument
+        echo -e "${GREEN}Launching with arguments: $@${NC}"
+        $ISAAC_PYTHON "$MAIN_SCRIPT" "$@"
+    fi
 fi

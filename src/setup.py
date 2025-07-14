@@ -65,6 +65,10 @@ setup(
     entry_points={
         'console_scripts': [
             'hunav_isaac_main = scripts.main:main',
+            'hunav_isaac_launcher = hunav_isaac_wrapper.ros_launcher:main',
+        ],
+        'ros2pkg': [
+            'hunav_isaac_wrapper = hunav_isaac_wrapper'
         ],
     },
 )

@@ -189,16 +189,32 @@ The interactive launcher will prompt you to select your desired robot:
 
 ### 6. Launch the Simulation
 
-Use the provided launcher script:
+You can launch the simulation using two methods:
+
+#### Method 1: Shell Script
 
 ```bash
+cd ~/Hunav_isaac_wrapper  # Navigate to the repository root
+# Make sure the script is executable
+chmod +x launch_hunav_isaac.sh
+# Launch the simulation
 ./launch_hunav_isaac.sh
 ```
 
-This will:
+#### Method 2: ROS2 Run Command
 
-- Start the interactive launcher with menu-driven configuration
-- Guide you through selecting agent configuration, world, and robot model
+```bash
+# Interactive mode
+ros2 run hunav_isaac_wrapper hunav_isaac_launcher
+
+# With custom arguments
+ros2 run hunav_isaac_wrapper hunav_isaac_launcher --config warehouse_agents.yaml --robot carter_ROS --batch
+```
+
+Both methods provide the same functionality and will:
+
+- Start the interactive launcher with menu-driven configuration (when no scenario specified)
+- Guide you through selecting agent configuration and robot model
 - Load the specified world and spawn agents based on your selections
 - Initialize physics, animations, and ROS 2 integration
 

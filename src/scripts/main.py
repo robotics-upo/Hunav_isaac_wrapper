@@ -43,6 +43,24 @@ if os.path.basename(src_dir) == "src":
     CONFIG_DIR = os.path.join(src_dir, "scenarios")
     WORLDS_DIR = os.path.join(src_dir, "worlds") 
     CONFIG_CONFIG_DIR = os.path.join(src_dir, "config")
+elif "lib" in script_dir and "hunav_isaac_wrapper" in script_dir:
+    # Installed ROS2 package mode - running from install/lib/hunav_isaac_wrapper/
+    # The ROS2 launcher should have set the working directory to the share directory
+    current_dir = os.getcwd()
+    if os.path.isdir(os.path.join(current_dir, "scenarios")):
+        # We're in the ROS2 package share directory
+        BASE_WRAPPER = current_dir
+        CONFIG_DIR = os.path.join(current_dir, "scenarios")
+        WORLDS_DIR = os.path.join(current_dir, "worlds")
+        CONFIG_CONFIG_DIR = os.path.join(current_dir, "config")
+    else:
+        # Fallback to old paths for backward compatibility
+        HOME_WRAPPER = os.path.expanduser("~/Hunav_isaac_wrapper")
+        DOCKER_WRAPPER = "/workspace/hunav_isaac_ws/src/Hunav_isaac_wrapper"
+        BASE_WRAPPER = DOCKER_WRAPPER if os.path.isdir(DOCKER_WRAPPER) else HOME_WRAPPER
+        CONFIG_DIR = os.path.join(BASE_WRAPPER, "scenarios")
+        WORLDS_DIR = os.path.join(BASE_WRAPPER, "worlds")
+        CONFIG_CONFIG_DIR = os.path.join(BASE_WRAPPER, "config")
 else:
     # Fallback to old paths for backward compatibility
     HOME_WRAPPER = os.path.expanduser("~/Hunav_isaac_wrapper")

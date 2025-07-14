@@ -24,6 +24,13 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# Install the ROS launcher executable
+install(PROGRAMS
+  hunav_isaac_wrapper/ros_launcher.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME hunav_isaac_launcher
+)
+
 # Install launch files
 install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
