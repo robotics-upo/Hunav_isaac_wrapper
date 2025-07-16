@@ -16,17 +16,24 @@ from pathlib import Path
 def find_isaac_python():
     """Find the Isaac Sim python executable."""
     isaac_paths = [
+        # Container-specific path
+        Path("/isaac-sim/python.sh"),
+        # Standard user installation paths
         Path.home() / "isaacsim" / "python.sh",
         Path.home() / ".local" / "share" / "ov" / "pkg"
     ]
     
-    # Check direct path
+    # Check container path first
     if isaac_paths[0].exists():
         return f"bash {isaac_paths[0]}"
     
-    # Check AppImage installation
+    # Check direct user path
     if isaac_paths[1].exists():
-        isaac_dirs = list(isaac_paths[1].glob("isaac_sim-*"))
+        return f"bash {isaac_paths[1]}"
+    
+    # Check AppImage installation
+    if isaac_paths[2].exists():
+        isaac_dirs = list(isaac_paths[2].glob("isaac_sim-*"))
         if isaac_dirs:
             python_sh = isaac_dirs[0] / "python.sh"
             if python_sh.exists():
