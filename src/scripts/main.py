@@ -605,7 +605,7 @@ def interactive_config_selection():
                 )
                 
                 # Wait a bit and check if it started successfully
-                time.sleep(3)
+                time.sleep(0.5)
                 if rviz_process.poll() is None:
                     # Process is still running
                     print_success("RViz2 panel launched successfully!")
